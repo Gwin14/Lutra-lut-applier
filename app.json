@@ -1,17 +1,24 @@
 {
   "expo": {
-    "name": "lutra",
+    "name": "Lutra",
     "slug": "lutra",
+    "scheme": "lutra",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "description": "Aplique LUTs e looks em vídeos log, em lote, direto no celular.",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.lutra.video",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "app.lutra.video",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B0B0C",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -19,7 +26,64 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Lutra acessa seus vídeos para aplicar looks e LUTs.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "O Lutra acessa sua Galeria para salvar os vídeos exportados.",
+          "savePhotosPermission": "O Lutra salva os vídeos e quadros exportados na sua Galeria.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-sharing",
+      "expo-image",
+      "expo-video",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0B0C"
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.app.lutra.video",
+          "frequentUpdates": true,
+          "widgets": [
+            {
+              "name": "RenderStatus",
+              "displayName": "Exportação",
+              "description": "Progresso das exportações e atalho para um novo lote.",
+              "supportedFamilies": ["accessoryCircular", "accessoryRectangular", "accessoryInline", "systemSmall"]
+            },
+            {
+              "name": "LookOfDay",
+              "displayName": "Look do dia",
+              "description": "Um look diferente por dia, pronto para aplicar.",
+              "supportedFamilies": ["accessoryRectangular", "systemSmall"]
+            }
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
