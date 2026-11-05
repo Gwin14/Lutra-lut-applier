@@ -8,5 +8,11 @@
     "tests",
     "scripts",
     "engine/dist-engine.html"
+  ],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
@@ -38,10 +38,12 @@ export function Timeline({ duration, start, end, time, seek, paused, onTrim, onS
     e.value = end || duration;
   }, [start, end, duration, s, e]);
 
+  // formatTimecode is plain JS: format on the RN thread, not inside the worklet.
+  const updateLabel = useCallback((tenths: number) => setLabel(formatTimecode(tenths / 10)), []);
   useAnimatedReaction(
     () => Math.floor(time.value * 10),
     (v, prev) => {
-      if (v !== prev) scheduleOnRN(setLabel, formatTimecode(v / 10));
+      if (v !== prev) scheduleOnRN(updateLabel, v);
     },
   );
 
