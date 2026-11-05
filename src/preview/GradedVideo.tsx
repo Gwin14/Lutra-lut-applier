@@ -66,6 +66,10 @@ export function GradedVideo(p: Props) {
   );
 
   const lutTex = p.lut?.tex;
+  const lutImg = p.lut?.image ?? null;
+  // The LUT image and its layout (uLut) must swap in the same frame: the 17³
+  // preview bake sampled with the 33³ layout (or vice versa) flashes garish colors.
+  const lutImage = useDerivedValue(() => lutImg);
   const fx = fxVector(p.effects);
   const fc = p.falseColor ? 1 : 0;
   const zebra = p.zebra;
@@ -89,7 +93,7 @@ export function GradedVideo(p: Props) {
       <Fill>
         <Shader source={effect} uniforms={uniforms}>
           <ImageShader image={currentFrame} tx="clamp" ty="clamp" />
-          <ImageShader image={p.lut.image} tx="clamp" ty="clamp" />
+          <ImageShader image={lutImage} tx="clamp" ty="clamp" />
         </Shader>
       </Fill>
     </Canvas>
