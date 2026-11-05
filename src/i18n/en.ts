@@ -66,6 +66,7 @@ export const en: Dict = {
     newBatchTitle: 'New batch',
     newBatchBody: 'Pick several log clips. Lutra detects each one’s profile and applies the same look to all of them.',
     analyzing: (i, total) => `Analyzing ${i} of ${total} clips…`,
+    receiving: 'Receiving shared videos…',
     chooseVideos: 'Choose videos',
     lookOfDay: 'Look of the day',
     lookOfDayA11y: (name) => `Look of the day: ${name}`,

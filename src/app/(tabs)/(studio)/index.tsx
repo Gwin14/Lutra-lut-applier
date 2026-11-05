@@ -5,7 +5,7 @@ import { useWindowDimensions, View } from 'react-native';
 
 import { compileBuiltInLook, lookSwatches } from '../../../color/looks';
 import { lookName } from '../../../engine/jobs';
-import { startNewBatch, useImportState } from '../../../features/importClips';
+import { startBatchFromShare, startNewBatch, useImportState } from '../../../features/importClips';
 import { LookSwatches } from '../../../features/LookSwatches';
 import { useT } from '../../../i18n';
 import { lookText, profileText } from '../../../i18n/content';
@@ -38,7 +38,7 @@ function NewBatchCard() {
       </View>
       {busy ? (
         <View style={{ gap: space.s }}>
-          <Text variant="footnote" tone="secondary" tabular>{t.studio.analyzing(Math.min(done + 1, total), total)}</Text>
+          <Text variant="footnote" tone="secondary" tabular>{total ? t.studio.analyzing(Math.min(done + 1, total), total) : t.studio.receiving}</Text>
           <ProgressBar value={total ? done / total : 0} />
         </View>
       ) : (
@@ -137,17 +137,18 @@ export default function StudioScreen() {
   const error = useImportState((s) => s.error);
   const { width } = useWindowDimensions();
   const columns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
-  const params = useLocalSearchParams<{ action?: string; look?: string }>();
+  const params = useLocalSearchParams<{ action?: string; look?: string; t?: string }>();
   const handled = useRef<string | null>(null);
 
   // Widget deep link: lutra:///?action=new&look=<id>
+  // Share sheet (via +native-intent): /?action=shared&t=<nonce>
   useEffect(() => {
-    const token = `${params.action}:${params.look}`;
-    if (params.action === 'new' && handled.current !== token) {
-      handled.current = token;
-      startNewBatch({ lookId: params.look });
-    }
-  }, [params.action, params.look]);
+    const token = `${params.action}:${params.look}:${params.t}`;
+    if (!params.action || handled.current === token) return;
+    handled.current = token;
+    if (params.action === 'new') startNewBatch({ lookId: params.look });
+    else if (params.action === 'shared') startBatchFromShare();
+  }, [params.action, params.look, params.t]);
 
   const header = (
     <View style={{ gap: space.l, paddingBottom: space.l }}>

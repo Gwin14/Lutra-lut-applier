@@ -2,7 +2,8 @@ import { router } from 'expo-router';
 import { create } from 'zustand';
 
 import { tr } from '../i18n';
-import { clipFromAsset, pickVideos } from '../lib/media';
+import { takeSharedVideos } from '../lib/incomingShare';
+import { clipFromAsset, pickVideos, type VideoInput } from '../lib/media';
 import { haptic } from '../lib/haptics';
 import { useProjects, type Clip } from '../store/projects';
 import { useSettings } from '../store/settings';
@@ -11,7 +12,7 @@ type ImportState = { busy: boolean; done: number; total: number; error: string |
 
 export const useImportState = create<ImportState>(() => ({ busy: false, done: 0, total: 0, error: null }));
 
-async function analyze(assets: Awaited<ReturnType<typeof pickVideos>>) {
+async function analyze(assets: VideoInput[]) {
   const { autoDetectLog, preferredLog } = useSettings.getState();
   useImportState.setState({ busy: true, done: 0, total: assets.length, error: null });
   const clips: Clip[] = [];
@@ -23,11 +24,25 @@ async function analyze(assets: Awaited<ReturnType<typeof pickVideos>>) {
 }
 
 /** Picks videos with the system picker, analyses them and opens the editor. */
-export async function startNewBatch(opts: { lookId?: string } = {}) {
+export function startNewBatch(opts: { lookId?: string } = {}) {
+  return batchFrom(pickVideos, opts);
+}
+
+/** Same flow, for videos sent to Lutra from another app's share sheet. */
+export function startBatchFromShare() {
+  return batchFrom(takeSharedVideos, { eager: true });
+}
+
+/** `eager` shows progress while the source loads (no system UI covers the app). */
+async function batchFrom(source: () => Promise<VideoInput[]>, opts: { lookId?: string; eager?: boolean } = {}) {
   if (useImportState.getState().busy) return;
+  if (opts.eager) useImportState.setState({ busy: true, done: 0, total: 0, error: null });
   try {
-    const assets = await pickVideos();
-    if (!assets.length) return;
+    const assets = await source();
+    if (!assets.length) {
+      useImportState.setState({ busy: false });
+      return;
+    }
     const clips = await analyze(assets);
     const project = useProjects.getState().create(clips);
     if (opts.lookId) useProjects.getState().editGrade(project.id, clips[0].id, { lookId: opts.lookId, lookStrength: 100 });

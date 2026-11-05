@@ -65,6 +65,7 @@ export const pt = {
     newBatchTitle: 'Novo lote',
     newBatchBody: 'Escolha vários clipes em log. O Lutra detecta o perfil de cada um e aplica o mesmo look em todos.',
     analyzing: (i: number, total: number) => `Analisando ${i} de ${total} clipes…`,
+    receiving: 'Recebendo vídeos compartilhados…',
     chooseVideos: 'Escolher vídeos',
     lookOfDay: 'Look do dia',
     lookOfDayA11y: (name: string) => `Look do dia: ${name}`,

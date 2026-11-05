@@ -50,7 +50,27 @@
           "isAccessMediaLocationEnabled": false
         }
       ],
-      "expo-sharing",
+      [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "appGroupId": "group.app.lutra.video",
+            "activationRule": {
+              "supportsMovieWithMaxCount": 30
+            }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": [
+              "video/*"
+            ],
+            "multipleShareMimeTypes": [
+              "video/*"
+            ]
+          }
+        }
+      ],
       "expo-image",
       "expo-video",
       "expo-font",

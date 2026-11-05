@@ -62,8 +62,11 @@ export async function analyzeLog(imageUri: string): Promise<LogVerdict | null> {
   }
 }
 
+/** The fields a clip needs; picker assets and shared files both provide them. */
+export type VideoInput = Pick<ImagePicker.ImagePickerAsset, 'uri' | 'duration' | 'fileName' | 'width' | 'height' | 'fileSize'>;
+
 export async function clipFromAsset(
-  asset: ImagePicker.ImagePickerAsset,
+  asset: VideoInput,
   opts: { autoDetect: boolean; preferredLog: ProfileId },
 ): Promise<Clip> {
   const duration = (asset.duration ?? 0) / 1000;
