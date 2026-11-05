@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "description": "Aplique LUTs e looks em vídeos log, em lote, direto no celular.",
     "ios": {
+      "icon": "./assets/lutra.icon",
       "supportsTablet": true,
       "bundleIdentifier": "app.lutra.video",
       "infoPlist": {
@@ -18,7 +19,7 @@
     "android": {
       "package": "app.lutra.video",
       "adaptiveIcon": {
-        "backgroundColor": "#0B0B0C",
+        "backgroundColor": "#6A50EC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
