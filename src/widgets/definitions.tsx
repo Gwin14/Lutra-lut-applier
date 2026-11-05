@@ -80,7 +80,7 @@ const RenderStatus = (props: RenderWidgetProps, env: WidgetEnvironment) => {
   return (
     <VStack alignment="leading" spacing={6} modifiers={[padding({ all: 2 }), containerBackground('#111113', 'widget'), widgetURL(url)]}>
       <HStack>
-        <Image systemName="camera.filters" size={16} color="#FFB23F" />
+        <Image systemName="camera.filters" size={16} color="#A594FF" />
         <Spacer />
         <Text modifiers={[font({ size: 12, weight: 'medium' }), foregroundStyle('#FFFFFF99')]}>{busy ? `${props.finished}/${props.total}` : 'Lutra'}</Text>
       </HStack>
@@ -107,7 +107,7 @@ const LookOfDay = (props: LookWidgetProps, env: WidgetEnvironment) => {
   }
   return (
     <VStack alignment="leading" spacing={6} modifiers={[containerBackground('#111113', 'widget'), widgetURL(url)]}>
-      <Text modifiers={[font({ size: 11, weight: 'semibold' }), foregroundStyle('#FFB23F')]}>LOOK DO DIA</Text>
+      <Text modifiers={[font({ size: 11, weight: 'semibold' }), foregroundStyle('#A594FF')]}>LOOK DO DIA</Text>
       <Text modifiers={[font({ size: 20, weight: 'bold' }), foregroundStyle('#FFFFFF')]}>{props.name}</Text>
       <Text modifiers={[font({ size: 12 }), foregroundStyle('#FFFFFFB3')]}>{props.description}</Text>
       <Spacer />
@@ -125,7 +125,7 @@ const RenderActivity = (props: RenderActivityProps, _env: LiveActivityEnvironmen
     banner: (
       <VStack alignment="leading" spacing={8} modifiers={[padding({ all: 16 })]}>
         <HStack spacing={8}>
-          <Image systemName="film.stack" color="#FFB23F" />
+          <Image systemName="film.stack" color="#A594FF" />
           <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>{props.title}</Text>
           <Spacer />
           <Text modifiers={[font({ size: 15, weight: 'bold' })]}>{pct}</Text>
@@ -134,10 +134,10 @@ const RenderActivity = (props: RenderActivityProps, _env: LiveActivityEnvironmen
         <Text modifiers={[font({ size: 12 }), foregroundStyle('#FFFFFFB3')]}>{`${props.finished} de ${props.total} prontos · ${props.eta}`}</Text>
       </VStack>
     ),
-    compactLeading: <Image systemName="film.stack" color="#FFB23F" />,
+    compactLeading: <Image systemName="film.stack" color="#A594FF" />,
     compactTrailing: <Text modifiers={[font({ size: 14, weight: 'semibold' })]}>{pct}</Text>,
     minimal: <Gauge value={props.progress} modifiers={[gaugeStyle('circularCapacity')]} />,
-    expandedLeading: <Image systemName="film.stack" color="#FFB23F" />,
+    expandedLeading: <Image systemName="film.stack" color="#A594FF" />,
     expandedTrailing: <Text modifiers={[font({ size: 17, weight: 'bold' })]}>{pct}</Text>,
     expandedCenter: <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>{props.title}</Text>,
     expandedBottom: (

@@ -1,46 +1,72 @@
 /**
- * Renders the app icon set from one vector source: an isometric "LUT cube"
- * (a 3D LUT is literally a colour cube) with flat faces in the amber accent
- * family on the editor's neutral background. Run: node scripts/make-icons.cjs
+ * Renders the app icon set from one vector source: a round "lens" split by an
+ * S-shaped tone curve. Below the curve the frame is flat, washed-out log
+ * footage; above it the same frame after the grade, in the violet accent
+ * family. The curve itself is the grading gesture, with one control node.
+ * Run: node scripts/make-icons.cjs
  */
 const { chromium } = require('playwright');
 const path = require('node:path');
 
 const BG = '#0B0B0C';
-const cube = ({ s = 1, mono = false, lattice = false } = {}) => {
-  // Isometric cube centred at 512,512, edge length 300*s.
-  const r = 300 * s;
+
+let uid = 0;
+const lens = ({ s = 1, mono = false, glow = false } = {}) => {
+  const id = `l${uid++}`;
+  const R = 330 * s;
   const cx = 512, cy = 512;
-  const dx = r * Math.cos(Math.PI / 6), dy = r / 2;
-  const top = [[cx, cy - r], [cx + dx, cy - dy], [cx, cy], [cx - dx, cy - dy]];
-  const left = [[cx - dx, cy - dy], [cx, cy], [cx, cy + r], [cx - dx, cy + dy]];
-  const right = [[cx, cy], [cx + dx, cy - dy], [cx + dx, cy + dy], [cx, cy + r]];
-  const poly = (p, fill) => `<polygon points="${p.map((q) => q.join(',')).join(' ')}" fill="${fill}"/>`;
-  const f = mono ? ['#FFFFFF', '#FFFFFF', '#FFFFFF'] : ['#FFB23F', '#B86A0C', '#6B3C06'];
-  let grid = '';
-  if (lattice && !mono) {
-    // Lattice lines hint at LUT nodes (3x3 per face).
-    const line = (a, b) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${BG}" stroke-opacity="0.28" stroke-width="${6 * s}"/>`;
-    const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    for (const face of [top, left, right]) {
-      for (const t of [1 / 3, 2 / 3]) {
-        grid += line(lerp(face[0], face[1], t), lerp(face[3], face[2], t));
-        grid += line(lerp(face[0], face[3], t), lerp(face[1], face[2], t));
-      }
-    }
+  // Map unit coords ([-1,1], y down) onto the lens.
+  const P = (x, y) => `${(cx + x * R).toFixed(1)},${(cy + y * R).toFixed(1)}`;
+  // Tone curve: toe at lower-left, shoulder at upper-right, overshooting the
+  // circle so the clip gives clean edges.
+  const curve = `M ${P(-1.2, 0.5)} C ${P(0.15, 0.98)} ${P(-0.15, -0.98)} ${P(1.2, -0.5)}`;
+  const graded = `${curve} L ${P(1.3, -1.3)} L ${P(-1.3, -1.3)} Z`;
+  const node = [cx, cy];
+  const stroke = 26 * s;
+
+  if (mono) {
+    // Monochrome (Android themed icons): solid lens with the curve cut out.
+    return `<defs><mask id="${id}m"><rect width="1024" height="1024" fill="#fff"/>` +
+      `<path d="${curve}" fill="none" stroke="#000" stroke-width="${stroke * 1.4}" stroke-linecap="round"/>` +
+      `<circle cx="${node[0]}" cy="${node[1]}" r="${38 * s}" fill="#000"/></mask></defs>` +
+      `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#fff" mask="url(#${id}m)"/>`;
   }
-  const edge = mono ? '' : `<polyline points="${[[cx - dx, cy - dy], [cx, cy], [cx + dx, cy - dy]].map((q) => q.join(',')).join(' ')}" fill="none" stroke="${BG}" stroke-width="${10 * s}"/><line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy + r}" stroke="${BG}" stroke-width="${10 * s}"/>`;
-  return poly(top, f[0]) + poly(left, f[1]) + poly(right, f[2]) + grid + edge;
+
+  return `<defs>
+    <clipPath id="${id}c"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
+    <linearGradient id="${id}g" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#5A3FE0"/>
+      <stop offset="0.55" stop-color="#9B7BFF"/>
+      <stop offset="1" stop-color="#E7A6FF"/>
+    </linearGradient>
+    <linearGradient id="${id}f" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6A6A72"/>
+      <stop offset="1" stop-color="#3C3C42"/>
+    </linearGradient>
+    <radialGradient id="${id}h" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7B61FF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#7B61FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>` +
+    (glow ? `<circle cx="${cx}" cy="${cy}" r="${R * 1.45}" fill="url(#${id}h)"/>` : '') +
+    `<g clip-path="url(#${id}c)">
+      <rect x="0" y="0" width="1024" height="1024" fill="url(#${id}f)"/>
+      <path d="${graded}" fill="url(#${id}g)"/>
+    </g>` +
+    `<path d="${curve}" fill="none" stroke="${BG}" stroke-opacity="0.35" stroke-width="${stroke + 14 * s}" stroke-linecap="round" clip-path="url(#${id}c)"/>` +
+    `<path d="${curve}" fill="none" stroke="#FFFFFF" stroke-width="${stroke}" stroke-linecap="round" clip-path="url(#${id}c)"/>` +
+    `<circle cx="${node[0]}" cy="${node[1]}" r="${36 * s}" fill="#FFFFFF" stroke="${BG}" stroke-opacity="0.35" stroke-width="${7 * s}"/>` +
+    `<circle cx="${node[0]}" cy="${node[1]}" r="${14 * s}" fill="#6E56F8"/>`;
 };
 const svg = (body, bg) => `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${bg ? `<rect width="1024" height="1024" fill="${bg}"/>` : ''}${body}</svg>`;
 
 const outputs = [
-  ['assets/icon.png', svg(cube({ s: 1.05 }), BG), 1024],
-  ['assets/android-icon-foreground.png', svg(cube({ s: 0.72 })), 1024],
+  ['assets/icon.png', svg(lens({ s: 1.0, glow: true }), BG), 1024],
+  ['assets/android-icon-foreground.png', svg(lens({ s: 0.76 })), 1024],
   ['assets/android-icon-background.png', svg('', BG), 1024],
-  ['assets/android-icon-monochrome.png', svg(cube({ s: 0.72, mono: true })), 1024],
-  ['assets/splash-icon.png', svg(cube({ s: 1.2 })), 1024],
-  ['assets/favicon.png', svg(cube({ s: 1.25, lattice: false }), BG), 48],
+  ['assets/android-icon-monochrome.png', svg(lens({ s: 0.76, mono: true })), 1024],
+  ['assets/splash-icon.png', svg(lens({ s: 1.2 })), 1024],
+  ['assets/favicon.png', svg(lens({ s: 1.35 }), BG), 48],
 ];
 
 (async () => {

@@ -1,7 +1,8 @@
 /**
  * Design tokens. Rules (enforced by review, not by taste):
- * - One accent: amber "tungsten". Spent on primary actions, active state, progress.
- *   Text on the accent fill is always `onAccent` (near-black) in both themes.
+ * - One accent: violet "ultraviolet". Spent on primary actions, active state, progress.
+ *   Text on the accent fill is always `onAccent` (white in light, deep violet-black
+ *   in dark; both clear WCAG AA against their fill).
  * - One grey family: iOS system greys (cool). No warm greys anywhere.
  * - Shape lock: actions/chips are pills, cards & sheets 16, media 10, inputs 10.
  * - Spacing base unit 4.
@@ -41,10 +42,10 @@ export const light: Palette = {
   label: '#000000',
   labelSecondary: 'rgba(60,60,67,0.64)',
   labelTertiary: 'rgba(60,60,67,0.36)',
-  accent: '#F5A623',
-  accentText: '#9A5B00',
-  onAccent: '#1A1206',
-  accentSoft: 'rgba(245,166,35,0.16)',
+  accent: '#6E56F8',
+  accentText: '#5A3FE0',
+  onAccent: '#FFFFFF',
+  accentSoft: 'rgba(110,86,248,0.14)',
   danger: '#D70015',
   success: '#248A3D',
   overlay: 'rgba(0,0,0,0.4)',
@@ -61,10 +62,10 @@ export const dark: Palette = {
   label: '#FFFFFF',
   labelSecondary: 'rgba(235,235,245,0.64)',
   labelTertiary: 'rgba(235,235,245,0.34)',
-  accent: '#FFB23F',
-  accentText: '#FFBE5C',
-  onAccent: '#1A1206',
-  accentSoft: 'rgba(255,178,63,0.18)',
+  accent: '#A594FF',
+  accentText: '#B7AAFF',
+  onAccent: '#120B2E',
+  accentSoft: 'rgba(165,148,255,0.18)',
   danger: '#FF453A',
   success: '#30D158',
   overlay: 'rgba(0,0,0,0.5)',
