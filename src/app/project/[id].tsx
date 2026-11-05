@@ -18,6 +18,7 @@ import { LookPanel } from '../../features/editor/panels/LookPanel';
 import { Timeline } from '../../features/editor/Timeline';
 import { ToolBar, type Tool } from '../../features/editor/ToolBar';
 import { Viewer } from '../../features/editor/Viewer';
+import { useT } from '../../i18n';
 import { fileExists } from '../../lib/files';
 import { haptic } from '../../lib/haptics';
 import { useLibrary } from '../../store/library';
@@ -34,9 +35,9 @@ import { EmptyState, InlineNotice } from '../../ui/States';
 import { Text } from '../../ui/Text';
 
 const SCOPE_CYCLE: (ScopeMode | null)[] = [null, 'histogram', 'waveform', 'parade'];
-const SCOPE_LABEL: Record<ScopeMode, string> = { histogram: 'Histograma', waveform: 'Waveform', parade: 'Parade RGB' };
 
 export default function EditorScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const project = useProjects((s) => s.projects.find((p) => p.id === id));
   const [clipId, setClipId] = useState<string | undefined>(project?.clips[0]?.id);
@@ -50,7 +51,7 @@ export default function EditorScreen() {
     return (
       <PaletteScope palette={g} scheme="dark">
         <Stack.Screen options={{ title: '' }} />
-        <EmptyState icon="library" title="Lote não encontrado" message="Ele pode ter sido excluído em outra tela." action={<Button label="Voltar" onPress={() => router.back()} />} />
+        <EmptyState icon="library" title={t.editor.notFoundTitle} message={t.editor.notFoundMessage} action={<Button label={t.common.back} onPress={() => router.back()} />} />
       </PaletteScope>
     );
   }
@@ -60,9 +61,9 @@ export default function EditorScreen() {
         <Stack.Screen options={{ title: project.name }} />
         <EmptyState
           icon="add"
-          title="Lote vazio"
-          message="Adicione clipes para começar a aplicar looks."
-          action={<Button label="Adicionar clipes" icon="add" onPress={() => addClipsTo(project.id)} />}
+          title={t.editor.emptyTitle}
+          message={t.editor.emptyMessage}
+          action={<Button label={t.editor.addClips} icon="add" onPress={() => addClipsTo(project.id)} />}
         />
       </PaletteScope>
     );
@@ -71,6 +72,7 @@ export default function EditorScreen() {
 }
 
 function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Clip; onSelectClip: (id: string) => void }) {
+  const t = useT();
   const project = useProjects((s) => s.projects.find((p) => p.id === projectId))!;
   const grade = effectiveGrade(project, clip);
   const quality = useSettings((s) => s.previewQuality);
@@ -137,42 +139,42 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const clipActions = (c: Clip) => {
     const i = project.clips.findIndex((x) => x.id === c.id);
     showActions(c.name, [
-      { label: 'Perfil de câmera…', onPress: () => router.push({ pathname: '/profile/[id]', params: { id: project.id, clip: c.id } }) },
-      ...(i > 0 ? [{ label: 'Mover para a esquerda', onPress: () => store.moveClip(project.id, c.id, -1) }] : []),
-      ...(i < project.clips.length - 1 ? [{ label: 'Mover para a direita', onPress: () => store.moveClip(project.id, c.id, 1) }] : []),
+      { label: t.editor.cameraProfile, onPress: () => router.push({ pathname: '/profile/[id]', params: { id: project.id, clip: c.id } }) },
+      ...(i > 0 ? [{ label: t.editor.moveLeft, onPress: () => store.moveClip(project.id, c.id, -1) }] : []),
+      ...(i < project.clips.length - 1 ? [{ label: t.editor.moveRight, onPress: () => store.moveClip(project.id, c.id, 1) }] : []),
       {
-        label: 'Remover do lote',
+        label: t.editor.removeFromBatch,
         destructive: true,
-        onPress: () => confirmDestructive('Remover clipe?', 'O vídeo original continua na sua galeria.', 'Remover', () => store.removeClip(project.id, c.id)),
+        onPress: () => confirmDestructive(t.editor.removeClipTitle, t.editor.removeClipMessage, t.common.remove, () => store.removeClip(project.id, c.id)),
       },
     ]);
   };
 
   const moreActions = () =>
-    showActions('Lote', [
+    showActions(t.editor.batch, [
       {
-        label: 'Exportar quadro atual (PNG)',
+        label: t.editor.exportFrame,
         onPress: async () => {
           try {
             const r = await exportStill(clip, grade, project.aspect, time.value, 'png');
             haptic.success();
-            Alert.alert('Quadro exportado', r.saved ? `Salvo na Galeria (${r.width}×${r.height}).` : `Arquivo salvo no app (${r.width}×${r.height}). Permita o acesso à Galeria para salvar lá.`);
+            Alert.alert(t.editor.frameExported, r.saved ? t.editor.frameSaved(r.width, r.height) : t.editor.frameSavedInApp(r.width, r.height));
           } catch (e) {
             haptic.error();
-            Alert.alert('Não foi possível exportar o quadro', (e as Error).message);
+            Alert.alert(t.editor.frameFailed, (e as Error).message);
           }
         },
       },
-      { label: 'Exportar grade como LUT 33³ (.cube)', onPress: () => exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert('Erro', String(e?.message ?? e))) },
-      { label: 'Exportar grade como LUT 65³ (.cube)', onPress: () => exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert('Erro', String(e?.message ?? e))) },
+      { label: t.editor.exportCube(33), onPress: () => exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
+      { label: t.editor.exportCube(65), onPress: () => exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
       {
-        label: 'Salvar como receita',
+        label: t.editor.saveRecipe,
         onPress: () => {
           useLibrary.getState().addRecipe(`${project.name}`, grade, clip.input);
           haptic.success();
         },
       },
-      { label: 'Renomear lote', onPress: () => router.push({ pathname: '/rename/[id]', params: { id: project.id } }) },
+      { label: t.editor.renameBatch, onPress: () => router.push({ pathname: '/rename/[id]', params: { id: project.id } }) },
     ]);
 
   const dots = {
@@ -186,10 +188,10 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const controls = (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.l, paddingVertical: space.s }}>
       <View style={{ flexDirection: 'row', gap: space.s }}>
-        <IconButton icon={isPaused ? 'play' : 'pause'} label={isPaused ? 'Reproduzir' : 'Pausar'} onPress={togglePlay} />
+        <IconButton icon={isPaused ? 'play' : 'pause'} label={isPaused ? t.editor.play : t.editor.pause} onPress={togglePlay} />
         <IconButton
           icon={muted ? 'speakerOff' : 'speaker'}
-          label={muted ? 'Ativar som' : 'Silenciar'}
+          label={muted ? t.editor.unmute : t.editor.mute}
           tone="clear"
           color={g.label}
           onPress={() => {
@@ -202,7 +204,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
       <View style={{ flexDirection: 'row', gap: space.xs }}>
         <IconButton
           icon="compare"
-          label="Comparar antes e depois"
+          label={t.editor.compare}
           tone="clear"
           active={compare}
           onPress={() => {
@@ -214,7 +216,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
         />
         <IconButton
           icon="scopes"
-          label={scopes ? `Scopes: ${SCOPE_LABEL[scopes]}` : 'Mostrar scopes'}
+          label={scopes ? t.editor.scopesOn({ histogram: t.editor.histogram, waveform: t.editor.waveform, parade: t.editor.parade }[scopes]) : t.editor.showScopes}
           tone="clear"
           active={!!scopes}
           onPress={() => {
@@ -222,8 +224,8 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
             haptic.selection();
           }}
         />
-        <IconButton icon="falseColor" label="Falsa cor (exposição)" tone="clear" active={falseColor} onPress={() => setFalseColor((v) => !v)} />
-        <IconButton icon="zebra" label="Zebra (altas estouradas)" tone="clear" active={zebra} onPress={() => setZebra((v) => !v)} />
+        <IconButton icon="falseColor" label={t.editor.falseColor} tone="clear" active={falseColor} onPress={() => setFalseColor((v) => !v)} />
+        <IconButton icon="zebra" label={t.editor.zebra} tone="clear" active={zebra} onPress={() => setZebra((v) => !v)} />
       </View>
     </View>
   );
@@ -240,7 +242,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
 
   const viewer = missing ? (
     <View style={{ flex: 1, justifyContent: 'center', padding: space.l, backgroundColor: g.viewer }}>
-      <InlineNotice tone="error" title="Arquivo do clipe indisponível" message="O sistema pode ter limpado o cache de importação. Remova o clipe e importe de novo pela galeria." />
+      <InlineNotice tone="error" title={t.editor.missingTitle} message={t.editor.missingMessage} />
     </View>
   ) : (
     <Viewer
@@ -264,7 +266,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
       isPaused={isPaused}
       onTogglePlay={togglePlay}
       onInfo={setInfo}
-      badge={falseColor ? 'Falsa cor' : null}
+      badge={falseColor ? t.editor.falseColorBadge : null}
     />
   );
 
@@ -293,17 +295,17 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           headerTitleStyle: { color: g.label },
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
-              <IconButton icon="undo" label="Desfazer" tone="clear" color={g.label} disabled={!canUndo} onPress={() => store.undo(project.id, clip.id)} size={38} />
-              <IconButton icon="redo" label="Refazer" tone="clear" color={g.label} disabled={!canRedo} onPress={() => store.redo(project.id, clip.id)} size={38} />
-              <IconButton icon="more" label="Mais opções" tone="clear" color={g.label} onPress={moreActions} size={38} />
+              <IconButton icon="undo" label={t.editor.undo} tone="clear" color={g.label} disabled={!canUndo} onPress={() => store.undo(project.id, clip.id)} size={38} />
+              <IconButton icon="redo" label={t.editor.redo} tone="clear" color={g.label} disabled={!canRedo} onPress={() => store.redo(project.id, clip.id)} size={38} />
+              <IconButton icon="more" label={t.editor.moreOptions} tone="clear" color={g.label} onPress={moreActions} size={38} />
               <PressableScale
                 onPress={() => router.push({ pathname: '/export/[id]', params: { id: project.id } })}
                 accessibilityRole="button"
-                accessibilityLabel="Exportar"
+                accessibilityLabel={t.editor.export}
                 style={{ height: 34, paddingHorizontal: space.m + 2, borderRadius: radius.pill, backgroundColor: g.accent, justifyContent: 'center', marginLeft: space.xs }}
               >
                 <Text variant="subhead" weight="600" color={g.onAccent}>
-                  Exportar
+                  {t.editor.export}
                 </Text>
               </PressableScale>
             </View>

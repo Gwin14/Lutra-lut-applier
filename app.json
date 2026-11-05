@@ -7,13 +7,15 @@
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "description": "Aplique LUTs e looks em vídeos log, em lote, direto no celular.",
+    "description": "Apply LUTs and looks to log videos, in batches, right on your phone.",
     "ios": {
       "icon": "./assets/lutra.icon",
       "supportsTablet": true,
       "bundleIdentifier": "app.lutra.video",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleDevelopmentRegion": "en"
       }
     },
     "android": {
@@ -35,7 +37,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "O Lutra acessa seus vídeos para aplicar looks e LUTs.",
+          "photosPermission": "Lutra accesses your videos to apply looks and LUTs.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -43,8 +45,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "O Lutra acessa sua Galeria para salvar os vídeos exportados.",
-          "savePhotosPermission": "O Lutra salva os vídeos e quadros exportados na sua Galeria.",
+          "photosPermission": "Lutra accesses your library to save exported videos.",
+          "savePhotosPermission": "Lutra saves exported videos and frames to your library.",
           "isAccessMediaLocationEnabled": false
         }
       ],
@@ -69,22 +71,43 @@
           "widgets": [
             {
               "name": "RenderStatus",
-              "displayName": "Exportação",
-              "description": "Progresso das exportações e atalho para um novo lote.",
-              "supportedFamilies": ["accessoryCircular", "accessoryRectangular", "accessoryInline", "systemSmall"]
+              "displayName": "Export",
+              "description": "Export progress and a shortcut to a new batch.",
+              "supportedFamilies": [
+                "accessoryCircular",
+                "accessoryRectangular",
+                "accessoryInline",
+                "systemSmall"
+              ]
             },
             {
               "name": "LookOfDay",
-              "displayName": "Look do dia",
-              "description": "Um look diferente por dia, pronto para aplicar.",
-              "supportedFamilies": ["accessoryRectangular", "systemSmall"]
+              "displayName": "Look of the day",
+              "description": "A different look every day, ready to apply.",
+              "supportedFamilies": [
+                "accessoryRectangular",
+                "systemSmall"
+              ]
             }
+          ]
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "en",
+            "pt"
           ]
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "locales": {
+      "en": "./locales/en.json",
+      "pt": "./locales/pt.json"
     }
   }
 }

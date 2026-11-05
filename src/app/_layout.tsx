@@ -5,24 +5,28 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { EngineProvider } from '../engine/EngineProvider';
+import { useLang, useT } from '../i18n';
 import { loadAllUserLuts } from '../lib/userLuts';
 import { useLibrary } from '../store/library';
 import { dark, grade, light } from '../theme/tokens';
 import { useAppScheme } from '../theme/useTheme';
-import { refreshLookWidget } from '../widgets';
+import { refreshWidgetsLanguage } from '../widgets';
 
 export default function RootLayout() {
   const scheme = useAppScheme();
   const c = scheme === 'dark' ? dark : light;
   const lutCount = useLibrary((s) => s.userLuts.length);
+  const t = useT();
+  const lang = useLang();
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(c.bgGrouped).catch(() => {});
   }, [c.bgGrouped]);
 
+  // Widgets can't read the app's language: push freshly localized strings.
   useEffect(() => {
-    refreshLookWidget();
-  }, []);
+    refreshWidgetsLanguage();
+  }, [lang]);
 
   useEffect(() => {
     loadAllUserLuts().catch(() => {});
@@ -51,10 +55,10 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: grade.bg },
               }}
             />
-            <Stack.Screen name="export/[id]" options={{ presentation: 'modal', title: 'Exportar' }} />
+            <Stack.Screen name="export/[id]" options={{ presentation: 'modal', title: t.screens.export }} />
             <Stack.Screen
               name="profile/[id]"
-              options={{ presentation: 'formSheet', title: 'Perfil de câmera', sheetAllowedDetents: [0.65, 1], sheetGrabberVisible: true }}
+              options={{ presentation: 'formSheet', title: t.screens.profile, sheetAllowedDetents: [0.65, 1], sheetGrabberVisible: true }}
             />
             <Stack.Screen
               name="look/[id]"
@@ -62,7 +66,7 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="rename/[id]"
-              options={{ presentation: 'formSheet', title: 'Renomear', sheetAllowedDetents: [0.4], sheetGrabberVisible: true }}
+              options={{ presentation: 'formSheet', title: t.screens.rename, sheetAllowedDetents: [0.4], sheetGrabberVisible: true }}
             />
           </Stack>
         </EngineProvider>

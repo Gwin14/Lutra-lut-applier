@@ -7,7 +7,9 @@
  */
 import { requireOptionalNativeModule } from 'expo';
 
-import { BUILT_IN_LOOKS, LOOK_CATEGORIES, compileBuiltInLook, lookSwatches } from '../color/looks';
+import { BUILT_IN_LOOKS, compileBuiltInLook, lookSwatches } from '../color/looks';
+import { tr } from '../i18n';
+import { categoryLabel, lookText } from '../i18n/content';
 import type { LookWidgetProps, RenderActivityProps, RenderWidgetProps } from './definitions';
 
 type Defs = typeof import('./definitions');
@@ -31,10 +33,38 @@ function load(): Defs | null {
 
 export const widgetsAvailable = nativeAvailable;
 
-export function updateRenderWidget(props: RenderWidgetProps) {
+/** Render widget state as the app knows it; the localized `text` is added here. */
+export type RenderWidgetState = Omit<RenderWidgetProps, 'text'>;
+
+let lastRender: RenderWidgetState | null = null;
+
+function renderText(p: RenderWidgetState): RenderWidgetProps['text'] {
+  const t = tr().widgets;
+  return {
+    inline: p.exportedToday > 0 ? t.exportedTodayInline(p.exportedToday) : t.newBatchInline,
+    heading: p.state === 'rendering' ? t.exporting : p.state === 'done' ? t.exported : 'Lutra',
+    caption: t.exportedToday(p.exportedToday),
+  };
+}
+
+export function updateRenderWidget(state: RenderWidgetState) {
+  lastRender = state;
+  const d = load();
+  if (!d) return;
   try {
-    load()?.renderStatusWidget.updateSnapshot(props);
+    d.renderStatusWidget.updateSnapshot({ ...state, text: renderText(state) });
   } catch {}
+}
+
+/** Re-sends every widget's strings after a language change. */
+export function refreshWidgetsLanguage() {
+  if (!load()) return;
+  updateRenderWidget(
+    lastRender && lastRender.state !== 'rendering'
+      ? lastRender
+      : lastRender ?? { state: 'idle', progress: 0, title: '', detail: tr().widgets.tapToCreate, finished: 0, total: 0, exportedToday: 0 },
+  );
+  refreshLookWidget();
 }
 
 /** Deterministic "look of the day" shared by the app and the widget. */
@@ -53,12 +83,14 @@ export function refreshLookWidget() {
       date.setHours(0, 0, 5, 0);
       date.setDate(date.getDate() + i);
       const look = lookOfTheDay(date);
+      const text = lookText(look);
       const props: LookWidgetProps = {
         lookId: look.id,
-        name: look.name,
-        category: LOOK_CATEGORIES.find((c) => c.id === look.category)?.label ?? '',
+        name: text.name,
+        category: categoryLabel(look.category),
         swatches: lookSwatches(compileBuiltInLook(look.id)),
-        description: look.description,
+        description: text.description,
+        heading: tr().widgets.lookOfDay,
       };
       return { date: i === 0 ? new Date() : date, props };
     });
@@ -69,22 +101,27 @@ export function refreshLookWidget() {
 type Activity = { update(p: RenderActivityProps): Promise<void>; end(policy?: 'default' | 'immediate', p?: RenderActivityProps): Promise<void> };
 let activity: Activity | null = null;
 
-export function startRenderActivity(props: RenderActivityProps) {
+/** Live Activity state; the localized subtitle is added here. */
+export type RenderActivityState = Omit<RenderActivityProps, 'subtitle'>;
+
+const withSubtitle = (p: RenderActivityState): RenderActivityProps => ({ ...p, subtitle: tr().widgets.readyOf(p.finished, p.total, p.eta) });
+
+export function startRenderActivity(props: RenderActivityState) {
   const d = load();
   if (!d) return;
   try {
-    activity = d.renderActivity.start(props, 'lutra:///exports') as unknown as Activity;
+    activity = d.renderActivity.start(withSubtitle(props), 'lutra:///exports') as unknown as Activity;
   } catch {
     activity = null;
   }
 }
 
-export function updateRenderActivity(props: RenderActivityProps) {
-  activity?.update(props).catch(() => {});
+export function updateRenderActivity(props: RenderActivityState) {
+  activity?.update(withSubtitle(props)).catch(() => {});
 }
 
-export function endRenderActivity(props?: RenderActivityProps) {
-  activity?.end('default', props).catch(() => {});
+export function endRenderActivity(props?: RenderActivityState) {
+  activity?.end('default', props ? withSubtitle(props) : undefined).catch(() => {});
   activity = null;
 }
 

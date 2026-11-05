@@ -1,8 +1,9 @@
 import { File } from 'expo-file-system';
 
 import { bakeGradeTexture } from '../color/bake';
-import { getBuiltInLook } from '../color/looks';
 import { bytesToBase64 } from '../color/lut';
+import { tr } from '../i18n';
+import { builtInLookName } from '../i18n/content';
 import { dirs, fileSize } from '../lib/files';
 import { sanitizeFilename } from '../lib/format';
 import { hashString, uid } from '../lib/id';
@@ -22,8 +23,8 @@ export type PreparedJob = {
 
 export function lookName(lookId: string | null) {
   if (!lookId) return null;
-  if (lookId.startsWith('user:')) return useLibrary.getState().userLuts.find((l) => l.id === lookId)?.name ?? 'LUT';
-  return getBuiltInLook(lookId)?.name ?? null;
+  if (lookId.startsWith('user:')) return useLibrary.getState().userLuts.find((l) => l.id === lookId)?.name ?? tr().common.lut;
+  return builtInLookName(lookId);
 }
 
 const yieldFrame = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -35,7 +36,7 @@ const yieldFrame = () => new Promise<void>((r) => setTimeout(r, 0));
 export async function prepareJob(project: Project, clipIds: string[], preset: ExportPreset): Promise<PreparedJob> {
   await loadAllUserLuts();
   const clips = project.clips.filter((c) => clipIds.includes(c.id));
-  if (!clips.length) throw new Error('Selecione ao menos um clipe.');
+  if (!clips.length) throw new Error(tr().exportSheet.selectAtLeastOne);
 
   const luts: Record<string, LutPayload> = {};
   const lutKeyFor = async (clip: Clip) => {
@@ -54,7 +55,7 @@ export async function prepareJob(project: Project, clipIds: string[], preset: Ex
     const key = `clip_${i}`;
     sources[key] = clip.uri;
     const size = fileSize(clip.uri) || clip.size;
-    if (!size) throw new Error(`O arquivo de "${clip.name}" não está mais disponível. Reimporte o clipe.`);
+    if (!size) throw new Error(tr().exportSheet.clipFileMissing(clip.name));
     const fade = preset.mode === 'merge' && preset.transition === 'fade' ? 0.35 : 0;
     const endsFade = preset.mode === 'merge' && preset.fadeEnds ? 0.6 : 0;
     return {

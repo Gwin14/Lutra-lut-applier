@@ -5,6 +5,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import { frameStats, judgeLog, suggestProfile, type LogVerdict } from '../color/detect';
 import type { ProfileId } from '../color/profiles';
 import type { Clip } from '../store/projects';
+import { intlTag, tr } from '../i18n';
 import { fileSize } from './files';
 import { uid } from './id';
 
@@ -72,7 +73,7 @@ export async function clipFromAsset(
   return {
     id: uid(),
     uri: asset.uri,
-    name: asset.fileName ?? `Clipe ${new Date().toLocaleTimeString('pt-BR')}`,
+    name: asset.fileName ?? tr().project.defaultClipName(new Date().toLocaleTimeString(intlTag())),
     duration,
     width: asset.width,
     height: asset.height,

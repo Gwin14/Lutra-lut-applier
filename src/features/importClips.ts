@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { create } from 'zustand';
 
+import { tr } from '../i18n';
 import { clipFromAsset, pickVideos } from '../lib/media';
 import { haptic } from '../lib/haptics';
 import { useProjects, type Clip } from '../store/projects';
@@ -35,7 +36,7 @@ export async function startNewBatch(opts: { lookId?: string } = {}) {
     router.push({ pathname: '/project/[id]', params: { id: project.id } });
   } catch (e) {
     haptic.error();
-    useImportState.setState({ busy: false, error: (e as Error)?.message ?? 'Não foi possível importar os vídeos.' });
+    useImportState.setState({ busy: false, error: (e as Error)?.message ?? tr().project.importError });
   }
 }
 
@@ -50,7 +51,7 @@ export async function addClipsTo(projectId: string) {
     haptic.success();
     return clips;
   } catch (e) {
-    useImportState.setState({ busy: false, error: (e as Error)?.message ?? 'Não foi possível importar os vídeos.' });
+    useImportState.setState({ busy: false, error: (e as Error)?.message ?? tr().project.importError });
     return [];
   }
 }

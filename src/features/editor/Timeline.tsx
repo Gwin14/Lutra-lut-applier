@@ -4,6 +4,7 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { useT } from '../../i18n';
 import { haptic } from '../../lib/haptics';
 import { formatTimecode } from '../../lib/format';
 import { grade as g, radius, space } from '../../theme/tokens';
@@ -25,6 +26,7 @@ const MIN_LEN = 0.5;
 
 /** Trim range with draggable in/out handles, playhead and scrubbing. */
 export function Timeline({ duration, start, end, time, seek, paused, onTrim, onScrubStart }: Props) {
+  const t = useT();
   const [width, setWidth] = useState(0);
   const [label, setLabel] = useState('0:00.0');
   const s = useSharedValue(start);
@@ -129,16 +131,16 @@ export function Timeline({ duration, start, end, time, seek, paused, onTrim, onS
         </Text>
       </View>
       <GestureDetector gesture={scrub}>
-        <View onLayout={(ev) => setWidth(ev.nativeEvent.layout.width)} style={{ height: 40, justifyContent: 'center' }} accessibilityLabel="Linha do tempo" accessibilityHint="Arraste para navegar no clipe">
+        <View onLayout={(ev) => setWidth(ev.nativeEvent.layout.width)} style={{ height: 40, justifyContent: 'center' }} accessibilityLabel={t.editor.timeline} accessibilityHint={t.editor.timelineHint}>
           <View style={{ position: 'absolute', left: HANDLE, right: HANDLE, height: 28, borderRadius: radius.input, backgroundColor: g.fill }} />
           <Animated.View style={[{ position: 'absolute', top: 6, height: 28, borderRadius: radius.input, borderWidth: 2, borderColor: g.accent, borderCurve: 'continuous' }, rangeStyle]}>
             <GestureDetector gesture={startPan}>
-              <View hitSlop={{ left: 14, right: 6, top: 8, bottom: 8 }} accessibilityLabel="Início do corte" style={{ position: 'absolute', left: -2, top: -2, bottom: -2, width: HANDLE, borderTopLeftRadius: radius.input, borderBottomLeftRadius: radius.input, backgroundColor: g.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <View hitSlop={{ left: 14, right: 6, top: 8, bottom: 8 }} accessibilityLabel={t.editor.trimStart} style={{ position: 'absolute', left: -2, top: -2, bottom: -2, width: HANDLE, borderTopLeftRadius: radius.input, borderBottomLeftRadius: radius.input, backgroundColor: g.accent, alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{ width: 2, height: 12, borderRadius: 1, backgroundColor: g.onAccent }} />
               </View>
             </GestureDetector>
             <GestureDetector gesture={endPan}>
-              <View hitSlop={{ left: 6, right: 14, top: 8, bottom: 8 }} accessibilityLabel="Fim do corte" style={{ position: 'absolute', right: -2, top: -2, bottom: -2, width: HANDLE, borderTopRightRadius: radius.input, borderBottomRightRadius: radius.input, backgroundColor: g.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <View hitSlop={{ left: 6, right: 14, top: 8, bottom: 8 }} accessibilityLabel={t.editor.trimEnd} style={{ position: 'absolute', right: -2, top: -2, bottom: -2, width: HANDLE, borderTopRightRadius: radius.input, borderBottomRightRadius: radius.input, backgroundColor: g.accent, alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{ width: 2, height: 12, borderRadius: 1, backgroundColor: g.onAccent }} />
               </View>
             </GestureDetector>

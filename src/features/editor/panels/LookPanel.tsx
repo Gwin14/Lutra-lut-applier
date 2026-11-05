@@ -6,6 +6,8 @@ import { Alert, ScrollView, View } from 'react-native';
 import type { Grade } from '../../../color/grade';
 import { BUILT_IN_LOOKS, LOOK_CATEGORIES, type LookCategory } from '../../../color/looks';
 import type { ProfileId } from '../../../color/profiles';
+import { useT } from '../../../i18n';
+import { categoryLabel, lookText } from '../../../i18n/content';
 import { haptic } from '../../../lib/haptics';
 import { importCubeFiles } from '../../../lib/userLuts';
 import { GradedStill } from '../../../preview/GradedStill';
@@ -41,6 +43,8 @@ const LookTile = memo(function LookTile({ id, name, image, input, base, selected
 });
 
 export function LookPanel({ project, clip, grade }: { project: Project; clip: Clip; grade: Grade }) {
+  const t = useT();
+  const l = t.lookPanel;
   const image = useImage(clip.thumb ?? undefined);
   const [filter, setFilter] = useState<Filter>('all');
   const favorites = useLibrary((s) => s.favorites);
@@ -51,14 +55,14 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
   const base = useMemo(() => ({ ...grade, lookStrength: 100 }), [grade]);
 
   const items = useMemo(() => {
-    const builtIn = BUILT_IN_LOOKS.map((l) => ({ id: l.id, name: l.name, category: l.category as string }));
-    const mine = userLuts.map((l) => ({ id: l.id, name: l.name, category: 'mine' }));
+    const builtIn = BUILT_IN_LOOKS.map((b) => ({ id: b.id, name: lookText(b, t).name, category: b.category as string }));
+    const mine = userLuts.map((u) => ({ id: u.id, name: u.name, category: 'mine' }));
     const all = [...mine, ...builtIn];
     if (filter === 'all') return all;
-    if (filter === 'fav') return all.filter((l) => favorites.includes(l.id));
+    if (filter === 'fav') return all.filter((x) => favorites.includes(x.id));
     if (filter === 'mine') return mine;
-    return builtIn.filter((l) => l.category === filter);
-  }, [filter, favorites, userLuts]);
+    return builtIn.filter((x) => x.category === filter);
+  }, [filter, favorites, userLuts, t]);
 
   const select = (lookId: string | null) => {
     store.checkpoint(project.id, clip.id);
@@ -74,36 +78,36 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
       setFilter('mine');
       select(res.imported[0].id);
     }
-    if (res.errors.length) Alert.alert('Alguns arquivos não foram importados', res.errors.join('\n'));
+    if (res.errors.length) Alert.alert(t.common.importFailedSome, res.errors.join('\n'));
   };
 
   const saveRecipe = () => {
-    const suggested = `Receita ${recipes.length + 1}`;
+    const suggested = l.recipeName(recipes.length + 1);
     const save = (name?: string) => {
       useLibrary.getState().addRecipe(name?.trim() || suggested, grade, clip.input);
       haptic.success();
     };
-    if (process.env.EXPO_OS === 'ios') Alert.prompt('Salvar receita', 'Guarda look, intensidade, ajustes e efeitos para reaplicar em outros lotes.', save, 'plain-text', suggested);
+    if (process.env.EXPO_OS === 'ios') Alert.prompt(l.saveRecipeTitle, l.saveRecipeMessage, save, 'plain-text', suggested);
     else save();
   };
 
   return (
     <View style={{ gap: space.l }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.l, gap: space.s }}>
-        <Chip label="Todos" selected={filter === 'all'} onPress={() => setFilter('all')} />
-        {favorites.length ? <Chip label="Favoritos" icon="favoriteOn" selected={filter === 'fav'} onPress={() => setFilter('fav')} /> : null}
-        {userLuts.length ? <Chip label="Meus LUTs" selected={filter === 'mine'} onPress={() => setFilter('mine')} /> : null}
+        <Chip label={l.all} selected={filter === 'all'} onPress={() => setFilter('all')} />
+        {favorites.length ? <Chip label={t.common.favorites} icon="favoriteOn" selected={filter === 'fav'} onPress={() => setFilter('fav')} /> : null}
+        {userLuts.length ? <Chip label={t.common.myLuts} selected={filter === 'mine'} onPress={() => setFilter('mine')} /> : null}
         {LOOK_CATEGORIES.map((c) => (
-          <Chip key={c.id} label={c.label} selected={filter === c.id} onPress={() => setFilter(c.id)} />
+          <Chip key={c.id} label={categoryLabel(c.id, t)} selected={filter === c.id} onPress={() => setFilter(c.id)} />
         ))}
       </ScrollView>
 
       <View style={{ height: TH + 26 }}>
         <FlashList
           horizontal
-          data={[{ id: null as string | null, name: 'Sem look' }, ...items]}
+          data={[{ id: null as string | null, name: l.noLook }, ...items]}
           keyExtractor={(l) => l.id ?? 'none'}
-          extraData={`${grade.lookId}|${clip.input}`}
+          extraData={`${grade.lookId}|${clip.input}|${l.noLook}`}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: space.l }}
           ItemSeparatorComponent={() => <View style={{ width: space.m }} />}
@@ -115,7 +119,7 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
 
       {grade.lookId ? (
         <SliderRow
-          label="Intensidade do look"
+          label={l.strength}
           value={grade.lookStrength}
           min={0}
           max={100}
@@ -128,11 +132,11 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
 
       <View style={{ paddingHorizontal: space.l, gap: space.m }}>
         <View style={{ flexDirection: 'row', gap: space.s }}>
-          <Button label="Importar .cube" icon="import" variant="secondary" size="small" onPress={importLuts} />
-          <Button label="Salvar receita" icon="recipe" variant="secondary" size="small" onPress={saveRecipe} />
+          <Button label={l.importCube} icon="import" variant="secondary" size="small" onPress={importLuts} />
+          <Button label={l.saveRecipe} icon="recipe" variant="secondary" size="small" onPress={saveRecipe} />
           {grade.lookId ? (
             <Button
-              label={favorites.includes(grade.lookId) ? 'Favorito' : 'Favoritar'}
+              label={favorites.includes(grade.lookId) ? t.common.favorite : t.common.addFavorite}
               icon={favorites.includes(grade.lookId) ? 'favoriteOn' : 'favorite'}
               variant="secondary"
               size="small"
@@ -146,7 +150,7 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
         {recipes.length ? (
           <View style={{ gap: space.s }}>
             <Text variant="footnote" color={g.labelSecondary} style={{ textTransform: 'uppercase' }}>
-              Receitas
+              {l.recipes}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.s }}>
               {recipes.map((r) => (
@@ -158,10 +162,10 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
                     haptic.selection();
                   }}
                   onLongPress={() =>
-                    showActions(r.name, [{ label: 'Excluir receita', destructive: true, onPress: () => useLibrary.getState().removeRecipe(r.id) }])
+                    showActions(r.name, [{ label: l.deleteRecipe, destructive: true, onPress: () => useLibrary.getState().removeRecipe(r.id) }])
                   }
                   accessibilityRole="button"
-                  accessibilityLabel={`Aplicar receita ${r.name}`}
+                  accessibilityLabel={l.applyRecipeA11y(r.name)}
                   style={{ height: 34, paddingHorizontal: space.m, borderRadius: radius.pill, backgroundColor: g.fill, justifyContent: 'center' }}
                 >
                   <Text variant="subhead" weight="600" color={g.label}>

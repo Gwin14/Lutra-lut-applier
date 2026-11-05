@@ -6,7 +6,18 @@ import { bakeLut, sampleLut, type Lut3D } from './lut';
 
 export type ParsedCube = { title: string | null; lut: Lut3D; sourceSize: number; kind: '3d' | '1d' };
 
-export class CubeParseError extends Error {}
+export type CubeErrorCode = 'badLine' | 'notNumbers' | 'tooFewPoints' | 'tooLarge' | 'incomplete1d' | 'noSize';
+
+/** Parse failure with a stable code; the UI localizes it (message is English, for logs). */
+export class CubeParseError extends Error {
+  constructor(
+    readonly code: CubeErrorCode,
+    message: string,
+    readonly size?: number,
+  ) {
+    super(message);
+  }
+}
 
 export function parseCube(text: string): ParsedCube {
   let title: string | null = null;
@@ -23,7 +34,7 @@ export function parseCube(text: string): ParsedCube {
     const isNumeric = (c >= 48 && c <= 57) || c === 45 || c === 46 || c === 43;
     if (isNumeric) {
       const parts = line.split(/\s+/);
-      if (parts.length < 3) throw new CubeParseError('Linha de dados inválida no arquivo .cube.');
+      if (parts.length < 3) throw new CubeParseError('badLine', 'Invalid data line in .cube file.');
       values.push(+parts[0], +parts[1], +parts[2]);
       continue;
     }
@@ -36,21 +47,21 @@ export function parseCube(text: string): ParsedCube {
     else if (upper === 'DOMAIN_MAX') max = rest.slice(0, 3).map(Number);
     // LUT_3D_INPUT_RANGE and vendor keywords are ignored on purpose.
   }
-  if (values.some((v) => !Number.isFinite(v))) throw new CubeParseError('O arquivo contém valores que não são números.');
+  if (values.some((v) => !Number.isFinite(v))) throw new CubeParseError('notNumbers', 'File contains non-numeric values.');
 
   if (size3 >= 2) {
     const expected = size3 * size3 * size3 * 3;
     if (values.length < expected) {
-      throw new CubeParseError(`Esperava ${size3}³ pontos, mas o arquivo tem menos dados.`);
+      throw new CubeParseError('tooFewPoints', `Expected ${size3}^3 points, file has fewer.`, size3);
     }
-    if (size3 > 129) throw new CubeParseError('LUTs maiores que 129³ não são suportados.');
+    if (size3 > 129) throw new CubeParseError('tooLarge', 'LUTs larger than 129^3 are not supported.');
     const data = new Float32Array(values.slice(0, expected));
     const normalized = normalizeDomain({ size: size3, data }, min, max);
     return { title, lut: normalized, sourceSize: size3, kind: '3d' };
   }
   if (size1 >= 2) {
     const expected = size1 * 3;
-    if (values.length < expected) throw new CubeParseError('LUT 1D incompleto.');
+    if (values.length < expected) throw new CubeParseError('incomplete1d', 'Incomplete 1D LUT.');
     const curve = values.slice(0, expected);
     const sample = (ch: number, x: number) => {
       const t = ((x - min[ch]) / (max[ch] - min[ch])) * (size1 - 1);
@@ -65,7 +76,7 @@ export function parseCube(text: string): ParsedCube {
     });
     return { title, lut, sourceSize: size1, kind: '1d' };
   }
-  throw new CubeParseError('Arquivo sem LUT_3D_SIZE ou LUT_1D_SIZE.');
+  throw new CubeParseError('noSize', 'Missing LUT_3D_SIZE or LUT_1D_SIZE.');
 }
 
 function normalizeDomain(lut: Lut3D, min: number[], max: number[]): Lut3D {

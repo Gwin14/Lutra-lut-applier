@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRef } from 'react';
 import { TextInput, View } from 'react-native';
 
+import { useT } from '../../i18n';
 import { haptic } from '../../lib/haptics';
 import { useProjects } from '../../store/projects';
 import { radius, space, type as ramp } from '../../theme/tokens';
@@ -12,6 +13,7 @@ export default function RenameSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const project = useProjects((s) => s.projects.find((p) => p.id === id));
   const c = usePalette();
+  const t = useT();
   // Uncontrolled input: typing never re-renders the tree.
   const value = useRef(project?.name ?? '');
   if (!project) return null;
@@ -30,12 +32,12 @@ export default function RenameSheet() {
         returnKeyType="done"
         onSubmitEditing={save}
         maxLength={60}
-        accessibilityLabel="Nome do lote"
-        placeholder="Nome do lote"
+        accessibilityLabel={t.renameSheet.placeholder}
+        placeholder={t.renameSheet.placeholder}
         placeholderTextColor={c.labelTertiary}
         style={[ramp.body, { color: c.label, backgroundColor: c.fill, borderRadius: radius.input, paddingHorizontal: space.m, height: 48 }]}
       />
-      <Button label="Salvar" size="large" onPress={save} stretch />
+      <Button label={t.common.save} size="large" onPress={save} stretch />
     </View>
   );
 }

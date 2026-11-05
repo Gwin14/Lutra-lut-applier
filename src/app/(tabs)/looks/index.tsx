@@ -6,6 +6,8 @@ import { Alert, useWindowDimensions, View } from 'react-native';
 
 import { DEFAULT_GRADE } from '../../../color/grade';
 import { BUILT_IN_LOOKS, LOOK_CATEGORIES } from '../../../color/looks';
+import { useT } from '../../../i18n';
+import { categoryLabel, lookText } from '../../../i18n/content';
 import type { ProfileId } from '../../../color/profiles';
 import { haptic } from '../../../lib/haptics';
 import { importCubeFiles } from '../../../lib/userLuts';
@@ -25,6 +27,7 @@ type Item = { type: 'header'; title: string; action?: 'import' } | { type: 'look
 
 const LookCard = memo(function LookCard({ id, name, subtitle, width, input, image, favorite }: { id: string; name: string; subtitle: string; width: number; input: ProfileId; image: ReturnType<typeof useImage>; favorite: boolean }) {
   const c = usePalette();
+  const t = useT();
   const grade = useMemo(() => ({ ...DEFAULT_GRADE, lookId: id }), [id]);
   const lut = useThumbLut(input, grade);
   const h = Math.round((width * 9) / 16);
@@ -32,7 +35,7 @@ const LookCard = memo(function LookCard({ id, name, subtitle, width, input, imag
     <PressableScale
       onPress={() => router.push({ pathname: '/look/[id]', params: { id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${name}${favorite ? ', favorito' : ''}`}
+      accessibilityLabel={`${name}${favorite ? t.looksScreen.favoriteA11y : ''}`}
       style={{ width, gap: space.s }}
     >
       <View style={{ width, height: h, borderRadius: radius.media, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: c.fill }}>
@@ -51,6 +54,7 @@ const LookCard = memo(function LookCard({ id, name, subtitle, width, input, imag
 });
 
 export default function LooksScreen() {
+  const t = useT();
   const { width } = useWindowDimensions();
   const cols = width >= 1000 ? 4 : width >= 680 ? 3 : 2;
   const cardW = Math.floor((width - space.l * 2 - space.l * (cols - 1)) / cols);
@@ -64,34 +68,37 @@ export default function LooksScreen() {
   const input: ProfileId = useClip ? latest!.input : 'rec709';
 
   const items = useMemo<Item[]>(() => {
-    const out: Item[] = [{ type: 'header', title: 'Meus LUTs', action: 'import' }];
-    if (userLuts.length) for (const l of userLuts) out.push({ type: 'look', id: l.id, name: l.name, subtitle: `.cube · ${l.sourceSize}${l.kind === '3d' ? '³' : ' (1D)'}` });
+    const out: Item[] = [{ type: 'header', title: t.common.myLuts, action: 'import' }];
+    if (userLuts.length) for (const l of userLuts) out.push({ type: 'look', id: l.id, name: l.name, subtitle: t.lookSheet.cubeSubtitle(l.sourceSize, l.kind) });
     else out.push({ type: 'empty' });
     if (favorites.length) {
-      out.push({ type: 'header', title: 'Favoritos' });
+      out.push({ type: 'header', title: t.common.favorites });
       for (const id of favorites) {
         const b = BUILT_IN_LOOKS.find((l) => l.id === id);
         const u = userLuts.find((l) => l.id === id);
-        if (b) out.push({ type: 'look', id: b.id, name: b.name, subtitle: LOOK_CATEGORIES.find((c) => c.id === b.category)?.label ?? '' });
-        else if (u) out.push({ type: 'look', id: u.id, name: u.name, subtitle: 'Meu LUT' });
+        if (b) out.push({ type: 'look', id: b.id, name: lookText(b, t).name, subtitle: categoryLabel(b.category, t) });
+        else if (u) out.push({ type: 'look', id: u.id, name: u.name, subtitle: t.common.myLut });
       }
     }
     for (const cat of LOOK_CATEGORIES) {
-      out.push({ type: 'header', title: cat.label });
-      for (const l of BUILT_IN_LOOKS.filter((x) => x.category === cat.id)) out.push({ type: 'look', id: l.id, name: l.name, subtitle: l.description });
+      out.push({ type: 'header', title: categoryLabel(cat.id, t) });
+      for (const l of BUILT_IN_LOOKS.filter((x) => x.category === cat.id)) {
+        const text = lookText(l, t);
+        out.push({ type: 'look', id: l.id, name: text.name, subtitle: text.description });
+      }
     }
     return out;
-  }, [userLuts, favorites]);
+  }, [userLuts, favorites, t]);
 
   const doImport = async () => {
     const res = await importCubeFiles();
     if (res.imported.length) haptic.success();
-    if (res.errors.length) Alert.alert('Alguns arquivos não foram importados', res.errors.join('\n'));
+    if (res.errors.length) Alert.alert(t.common.importFailedSome, res.errors.join('\n'));
   };
 
   return (
     <>
-      <Stack.Screen options={{ headerRight: () => <IconButton icon="import" label="Importar LUT .cube" tone="clear" onPress={doImport} /> }} />
+      <Stack.Screen options={{ headerRight: () => <IconButton icon="import" label={t.looksScreen.importA11y} tone="clear" onPress={doImport} /> }} />
       <FlashList
         data={items}
         numColumns={cols}
@@ -105,8 +112,8 @@ export default function LooksScreen() {
         ListHeaderComponent={
           latest?.thumb ? (
             <View style={{ flexDirection: 'row', gap: space.s, paddingTop: space.s }}>
-              <Button label="No meu clipe" size="small" variant={source === 'clip' ? 'primary' : 'secondary'} onPress={() => setSource('clip')} />
-              <Button label="Carta de referência" size="small" variant={source === 'chart' ? 'primary' : 'secondary'} onPress={() => setSource('chart')} />
+              <Button label={t.looksScreen.onMyClip} size="small" variant={source === 'clip' ? 'primary' : 'secondary'} onPress={() => setSource('clip')} />
+              <Button label={t.looksScreen.referenceChart} size="small" variant={source === 'chart' ? 'primary' : 'secondary'} onPress={() => setSource('chart')} />
             </View>
           ) : null
         }
@@ -115,15 +122,15 @@ export default function LooksScreen() {
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.xxl, paddingBottom: space.m }}>
                 <Text variant="title3">{item.title}</Text>
-                {item.action ? <Button label="Importar" icon="import" variant="plain" size="small" onPress={doImport} /> : null}
+                {item.action ? <Button label={t.looksScreen.import} icon="import" variant="plain" size="small" onPress={doImport} /> : null}
               </View>
             );
           if (item.type === 'empty')
             return (
               <EmptyState
                 icon="cube"
-                title="Traga seus LUTs"
-                message="Importe arquivos .cube (33³, 65³ ou 1D) do app Arquivos, iCloud ou Drive. Eles aparecem aqui e no editor."
+                title={t.looksScreen.bringTitle}
+                message={t.looksScreen.bringMessage}
                 style={{ paddingVertical: space.xl }}
               />
             );

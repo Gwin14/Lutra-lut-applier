@@ -7,6 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { WebView as WebViewBase, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 
 import { base64ToBytes } from '../color/lut';
+import { tr } from '../i18n';
 import { haptic } from '../lib/haptics';
 import { formatEta } from '../lib/format';
 import { thumbnailAt } from '../lib/media';
@@ -14,6 +15,7 @@ import { useExports } from '../store/exports';
 import { useSettings } from '../store/settings';
 import { endRenderActivity, startRenderActivity, updateRenderActivity, updateRenderWidget } from '../widgets';
 import { ENGINE_HTML } from './engineHtml.generated';
+import { localizeEngineError } from './errors';
 import type { PreparedJob } from './jobs';
 import type { EngineCommand, EngineEvent } from './protocol';
 
@@ -75,7 +77,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       startedAt: Date.now(),
     });
     activateKeepAwakeAsync('lutra-render').catch(() => {});
-    startRenderActivity({ title, progress: 0, finished: 0, total: prepared.records.length, eta: 'iniciando…' });
+    startRenderActivity({ title, progress: 0, finished: 0, total: prepared.records.length, eta: tr().format.starting });
     send({ type: 'render', job: prepared.job });
   }, [send]);
 
@@ -97,7 +99,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     const progress = total ? done / total : 0;
     const finished = recs.filter((x) => x.status === 'done').length;
     const elapsed = (now - r.startedAt) / 1000;
-    const eta = progress > 0.02 ? formatEta((elapsed / progress) * (1 - progress)) : 'calculando…';
+    const eta = progress > 0.02 ? formatEta((elapsed / progress) * (1 - progress)) : tr().format.etaCalculating;
     updateRenderWidget({ state: 'rendering', progress, title: r.title, detail: eta, finished, total: recs.length, exportedToday: exportedToday() });
     updateRenderActivity({ title: r.title, progress, finished, total: recs.length, eta });
   }, []);
@@ -115,7 +117,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       for (const rec of r.prepared.records) {
         const cur = s.records.find((x) => x.id === rec.id);
         if (cur && (cur.status === 'queued' || cur.status === 'rendering' || cur.status === 'preparing')) {
-          s.patchRecord(rec.id, { status: canceled ? 'canceled' : 'failed', error: canceled ? null : cur.error ?? 'Falha desconhecida.' });
+          s.patchRecord(rec.id, { status: canceled ? 'canceled' : 'failed', error: canceled ? null : cur.error ?? tr().exports.unknownFailure });
           if (canceled) deleteQuietly(rec.uri);
         }
       }
@@ -128,12 +130,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         state: ok > 0 ? 'done' : 'failed',
         progress: 1,
         title: r.title,
-        detail: ok > 0 ? `${ok} de ${recs.length} exportados` : 'Exportação falhou',
+        detail: ok > 0 ? tr().exports.nOfMExported(ok, recs.length) : tr().exports.exportFailed,
         finished: ok,
         total: recs.length,
         exportedToday: exportedToday(),
       });
-      endRenderActivity({ title: r.title, progress: 1, finished: ok, total: recs.length, eta: canceled ? 'cancelado' : 'concluído' });
+      endRenderActivity({ title: r.title, progress: 1, finished: ok, total: recs.length, eta: canceled ? tr().exports.canceledShort : tr().exports.doneShort });
       deactivateKeepAwake('lutra-render').catch(() => {});
       running.current = null;
       s.setActive(null);
@@ -161,7 +163,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           const r = running.current;
           const uri = r?.prepared.sources[evt.clipKey];
           if (!uri) {
-            send({ type: 'readResult', id: evt.id, error: 'arquivo desconhecido' });
+            send({ type: 'readResult', id: evt.id, error: 'unknown file' });
             break;
           }
           try {
@@ -180,7 +182,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           const r = running.current;
           const rec = recordFor(evt.outIndex);
           if (!r || !rec) {
-            send({ type: 'writeAck', id: evt.id, error: 'sem destino' });
+            send({ type: 'writeAck', id: evt.id, error: 'no destination' });
             break;
           }
           try {
@@ -250,12 +252,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         case 'outputError': {
           const r = running.current;
           if (evt.outIndex < 0 && r) {
-            for (const rr of r.prepared.records) s.patchRecord(rr.id, { status: 'failed', error: evt.message });
+            for (const rr of r.prepared.records) s.patchRecord(rr.id, { status: 'failed', error: localizeEngineError(evt.message) });
             break;
           }
           const rec = recordFor(evt.outIndex);
           if (!rec) break;
-          s.patchRecord(rec.id, { status: 'failed', error: evt.message });
+          s.patchRecord(rec.id, { status: 'failed', error: localizeEngineError(evt.message) });
           const h = r?.handles.get(evt.outIndex);
           try {
             h?.close();
@@ -326,7 +328,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             useExports.getState().setEngineReady(false);
             if (running.current) {
               for (const rr of running.current.prepared.records) {
-                useExports.getState().patchRecord(rr.id, { status: 'failed', error: 'O motor de renderização foi encerrado pelo sistema (memória). Tente uma resolução menor.' });
+                useExports.getState().patchRecord(rr.id, { status: 'failed', error: tr().exports.engineKilled });
               }
               finishJob(false);
             }

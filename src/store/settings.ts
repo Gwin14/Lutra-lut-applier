@@ -32,6 +32,8 @@ export const DEFAULT_EXPORT: ExportPreset = {
 };
 
 export type Settings = {
+  /** UI language; 'system' follows the device (and iOS per-app language). */
+  language: 'system' | 'pt' | 'en';
   theme: 'system' | 'light' | 'dark';
   haptics: boolean;
   autoDetectLog: boolean;
@@ -51,6 +53,7 @@ type SettingsStore = Settings & {
 export const useSettings = create<SettingsStore>()(
   persist(
     (set) => ({
+      language: 'system',
       theme: 'system',
       haptics: true,
       autoDetectLog: true,
