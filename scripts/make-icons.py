@@ -44,12 +44,19 @@ def circle(r, cx=C, cy=C):
     return p
 
 
-def tone_curve():
-    R, a = CURVE_R, 0.5
+# Tone curve control points in CURVE_R units (y down). The splash starts on the
+# flat "log" line and the app animates it into the graded S (src/features/Splash.tsx
+# mirrors these numbers: keep them in sync).
+S_CURVE = [(-0.9, 0.5), (0.1, 0.85), (-0.1, -0.85), (0.9, -0.5)]
+LOG_CURVE = [(-0.9, 0.25), (-0.3, 0.25 / 3), (0.3, -0.25 / 3), (0.9, -0.25)]
+
+
+def tone_curve(pts=S_CURVE):
+    R = CURVE_R
     P = lambda x, y: (C + x * R, C + y * R)
     p = pathops.Path()
-    p.moveTo(*P(-0.9, a))
-    p.cubicTo(*P(0.1, a * 1.7), *P(-0.1, -a * 1.7), *P(0.9, -a))
+    p.moveTo(*P(*pts[0]))
+    p.cubicTo(*P(*pts[1]), *P(*pts[2]), *P(*pts[3]))
     p.stroke(CURVE_W, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
     p.convertConicsToQuads()
     return pathops.simplify(p)
@@ -134,7 +141,12 @@ mono = pathops.op(pathops.op(tone_curve(), circle(NODE_R), pathops.PathOp.UNION)
                   circle(DOT_R), pathops.PathOp.DIFFERENCE)
 render(stack([("m", "", f'<path d="{d(mono)}" fill="#FFFFFF"/>')], scale=0.72),
        os.path.join(ASSETS, "android-icon-monochrome.png"))
-render(masked(stack(LAYER_DEFS)), os.path.join(ASSETS, "splash-icon.png"))
+# Splash: the ungraded "log" state of the icon (neutral greys, flat curve).
+LOG_BG = BG_GRAD.replace("#A08BFF", "#8E8E96").replace("#4A2CD6", "#3A3A40")
+LOG_DOT = DOT_GRAD.replace("#8E78FF", "#A4A4AC").replace("#5A3FE0", "#5C5C64")
+log_layers = [("bg", LOG_BG, bg[2]), disc, rim,
+              ("curve", "", f'<path d="{d(tone_curve(LOG_CURVE))}" fill="#FFFFFF"/>'), node, ("dot", LOG_DOT, dot[2])]
+render(masked(stack(log_layers)), os.path.join(ASSETS, "splash-icon.png"))
 render(masked(stack(LAYER_DEFS)), os.path.join(ASSETS, "favicon.png"), size=48)
 
 # Icon Composer layers

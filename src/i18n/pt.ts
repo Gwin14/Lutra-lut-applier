@@ -203,6 +203,9 @@ export const pt = {
   },
 
   editor: {
+    enlargePanel: 'Aumentar controles',
+    shrinkPanel: 'Reduzir controles',
+    panelHandleHint: 'Arraste ou toque para redimensionar a área de controles.',
     notFoundTitle: 'Lote não encontrado',
     notFoundMessage: 'Ele pode ter sido excluído em outra tela.',
     emptyTitle: 'Lote vazio',
@@ -341,7 +344,19 @@ export const pt = {
     },
   },
 
+  onboarding: {
+    skip: 'Pular',
+    next: 'Continuar',
+    start: 'Começar',
+    pageA11y: (i: number, n: number) => `Página ${i} de ${n}`,
+    pages: [
+      { title: 'Do log ao look', body: 'Seu vídeo em log chega lavado. O Lutra reconhece o perfil da câmera e devolve contraste e cor num toque.', art: 'Antes e depois de um quadro em log com um look aplicado' },
+      { title: 'Um look, o lote inteiro', body: 'Escolha vários clipes, aplique o mesmo look e exporte tudo de uma vez — com fila em segundo plano.', art: 'Três clipes recebendo o mesmo look' },
+      { title: 'Controle de colorista', body: 'Curvas, scopes, falsa cor e seus próprios arquivos .cube. Tudo ao vivo, direto no celular.', art: 'Curva de tons sobre um histograma' },
+    ],
+  },
   settings: {
+    replayIntro: 'Ver introdução',
     language: 'Idioma',
     languageSystem: 'Sistema',
     appearance: 'Aparência',

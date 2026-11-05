@@ -204,6 +204,9 @@ export const en: Dict = {
   },
 
   editor: {
+    enlargePanel: 'Enlarge controls',
+    shrinkPanel: 'Shrink controls',
+    panelHandleHint: 'Drag or tap to resize the controls area.',
     notFoundTitle: 'Batch not found',
     notFoundMessage: 'It may have been deleted on another screen.',
     emptyTitle: 'Empty batch',
@@ -342,7 +345,19 @@ export const en: Dict = {
     },
   },
 
+  onboarding: {
+    skip: 'Skip',
+    next: 'Continue',
+    start: 'Get started',
+    pageA11y: (i: number, n: number) => `Page ${i} of ${n}`,
+    pages: [
+      { title: 'From log to look', body: 'Log footage arrives washed out. Lutra recognizes your camera profile and brings back contrast and colour in one tap.', art: 'Before and after of a log frame with a look applied' },
+      { title: 'One look, the whole batch', body: 'Pick several clips, apply the same look and export them all at once — queued in the background.', art: 'Three clips receiving the same look' },
+      { title: 'Colourist controls', body: 'Curves, scopes, false colour and your own .cube files. All live, right on your phone.', art: 'Tone curve over a histogram' },
+    ],
+  },
   settings: {
+    replayIntro: 'Show introduction',
     language: 'Language',
     languageSystem: 'System',
     appearance: 'Appearance',

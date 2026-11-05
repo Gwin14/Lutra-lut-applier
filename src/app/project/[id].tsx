@@ -1,7 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, useWindowDimensions, View } from 'react-native';
-import { useAnimatedReaction, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -14,6 +14,7 @@ import { ClipStrip } from '../../features/editor/ClipStrip';
 import { exportGradeCube, exportStill } from '../../features/editor/extras';
 import { AdjustPanel, EffectsPanel, FramePanel } from '../../features/editor/panels/AdjustPanels';
 import { InputPanel } from '../../features/editor/panels/InputPanel';
+import { PANEL_EASE, PANEL_MS, PanelHandle } from '../../features/editor/PanelHandle';
 import { LookPanel } from '../../features/editor/panels/LookPanel';
 import { Timeline } from '../../features/editor/Timeline';
 import { ToolBar, type Tool } from '../../features/editor/ToolBar';
@@ -33,6 +34,9 @@ import { Button, IconButton } from '../../ui/Button';
 import { PressableScale } from '../../ui/Pressable';
 import { EmptyState, InlineNotice } from '../../ui/States';
 import { Text } from '../../ui/Text';
+
+const STRIP_H = 56 + space.s * 2;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 const SCOPE_CYCLE: (ScopeMode | null)[] = [null, 'histogram', 'waveform', 'parade'];
 
@@ -81,7 +85,36 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const adding = useImportState((s) => s.busy);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const wide = width >= 900 && width > height;
+  // Any landscape window (phone or tablet) gets two columns: preview | controls.
+  const twoColumn = width > height;
+  // Short landscape (phones): the clip strip moves into the controls column.
+  const compactHeight = twoColumn && height < 500;
+  const large = useSettings((s) => s.editorPanel === 'large');
+  const panel = useSharedValue(large ? 1 : 0);
+  useEffect(() => {
+    panel.set(withTiming(large ? 1 : 0, { duration: PANEL_MS, easing: PANEL_EASE }));
+  }, [large, panel]);
+  const setLarge = useCallback(
+    (v: boolean) => {
+      if (v === (useSettings.getState().editorPanel === 'large')) return;
+      haptic.selection();
+      useSettings.getState().set('editorPanel', v ? 'large' : 'normal');
+    },
+    [],
+  );
+
+  // Portrait: the preview shrinks and the clip strip folds away.
+  const viewerNormal = Math.min(height * 0.4, width * 1.1);
+  const viewerLarge = Math.min(viewerNormal, Math.max(140, height * 0.22));
+  const portraitRange = viewerNormal - viewerLarge + STRIP_H;
+  // Two columns: the controls column widens.
+  const panelNormal = clamp(width * 0.36, 300, 420);
+  const panelLarge = clamp(width * 0.52, panelNormal + 80, 640);
+  const columnRange = panelLarge - panelNormal;
+
+  const viewerStyle = useAnimatedStyle(() => ({ height: viewerNormal - (viewerNormal - viewerLarge) * panel.value }));
+  const stripStyle = useAnimatedStyle(() => ({ height: STRIP_H * (1 - panel.value), opacity: 1 - panel.value }));
+  const columnStyle = useAnimatedStyle(() => ({ width: panelNormal + columnRange * panel.value + insets.right }));
 
   const paused = useSharedValue(false);
   const seek = useSharedValue<number | null>(null);
@@ -230,7 +263,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
     </View>
   );
 
-  const panel = (
+  const panelBody = (
     <ScrollView key={tool} contentContainerStyle={{ paddingTop: space.l, paddingBottom: insets.bottom + space.xxxl }} keyboardShouldPersistTaps="handled">
       {tool === 'input' ? <InputPanel project={project} clip={clip} /> : null}
       {tool === 'look' ? <LookPanel project={project} clip={clip} grade={grade} /> : null}
@@ -312,27 +345,32 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           ),
         }}
       />
-      {wide ? (
+      {twoColumn ? (
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: g.bg }}>
-          <View style={{ flex: 1, paddingBottom: insets.bottom + space.s, gap: space.s }}>
+          <View style={{ flex: 1, paddingLeft: insets.left, paddingBottom: insets.bottom + space.s, gap: space.s }}>
             {viewer}
             {controls}
             {timeline}
-            {strip}
+            {compactHeight ? null : strip}
           </View>
-          <View style={{ width: 400, borderLeftWidth: 0.5, borderColor: g.separator, backgroundColor: g.surface }}>
+          <Animated.View style={[{ paddingRight: insets.right, borderLeftWidth: 0.5, borderColor: g.separator, backgroundColor: g.surface }, columnStyle]}>
+            <PanelHandle axis="x" progress={panel} range={columnRange} expanded={large} onChange={setLarge} />
+            {compactHeight ? <View style={{ paddingVertical: space.s, backgroundColor: g.bg }}>{strip}</View> : null}
             <ToolBar value={tool} onChange={setTool} dots={dots} />
-            {panel}
-          </View>
+            {panelBody}
+          </Animated.View>
         </View>
       ) : (
         <View style={{ flex: 1, backgroundColor: g.bg }}>
-          <View style={{ height: Math.min(height * 0.4, width * 1.1) }}>{viewer}</View>
+          <Animated.View style={viewerStyle}>{viewer}</Animated.View>
           {controls}
           {timeline}
-          <View style={{ paddingVertical: space.s }}>{strip}</View>
+          <Animated.View pointerEvents={large ? 'none' : 'auto'} style={[{ overflow: 'hidden', justifyContent: 'center' }, stripStyle]}>
+            {strip}
+          </Animated.View>
+          <PanelHandle axis="y" progress={panel} range={portraitRange} expanded={large} onChange={setLarge} />
           <ToolBar value={tool} onChange={setTool} dots={dots} />
-          <View style={{ flex: 1, backgroundColor: g.surface }}>{panel}</View>
+          <View style={{ flex: 1, backgroundColor: g.surface }}>{panelBody}</View>
         </View>
       )}
     </PaletteScope>

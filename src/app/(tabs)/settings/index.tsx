@@ -105,6 +105,7 @@ export default function SettingsScreen() {
 
       <Section title={t.settings.about}>
         <Row title={t.settings.version} value={Constants.expoConfig?.version ?? '1.0.0'} />
+        <Row title={t.settings.replayIntro} chevron onPress={() => router.push('/onboarding')} />
         <Row
           title={t.settings.licenses}
           chevron
