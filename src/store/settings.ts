@@ -39,6 +39,8 @@ export type Settings = {
   haptics: boolean;
   autoDetectLog: boolean;
   preferredLog: ProfileId;
+  /** Videos from Files: keep a reference to the original (default) or copy into the app. */
+  filesImport: 'reference' | 'copy';
   previewQuality: 'fast' | 'balanced' | 'max';
   saveToPhotos: boolean;
   albumName: string;
@@ -63,6 +65,7 @@ export const useSettings = create<SettingsStore>()(
       haptics: true,
       autoDetectLog: true,
       preferredLog: process.env.EXPO_OS === 'ios' ? 'applelog' : 'slog3',
+      filesImport: 'reference',
       previewQuality: 'balanced',
       saveToPhotos: true,
       albumName: 'Lutra',

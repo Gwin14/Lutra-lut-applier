@@ -1,9 +1,9 @@
 /**
- * "Is this footage log?" heuristic + camera profile suggestion.
+ * "Does this frame look like log?" heuristic, used only when the file's
+ * metadata doesn't state its curve (see identify.ts).
  * Log footage is flat: compressed tonal range around a high mid-point and low
  * saturation. We look at a small downsampled frame (RGBA8).
  */
-import { PROFILES, type ProfileId } from './profiles';
 
 export type FrameStats = {
   p02: number;
@@ -58,24 +58,4 @@ export function judgeLog(stats: FrameStats): LogVerdict {
 
 function clamp(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
-}
-
-export function profileFromFilename(name: string | null | undefined): ProfileId | null {
-  if (!name) return null;
-  const lower = name.toLowerCase();
-  for (const p of PROFILES) {
-    if (p.filenameHints.some((h) => lower.startsWith(h))) return p.id;
-  }
-  return null;
-}
-
-export function suggestProfile(
-  filename: string | null | undefined,
-  verdict: LogVerdict | null,
-  preferredLog: ProfileId,
-): ProfileId {
-  if (verdict && !verdict.isLog) return 'rec709';
-  const hinted = profileFromFilename(filename);
-  if (hinted && hinted !== 'rec709') return hinted;
-  return verdict?.isLog ? preferredLog : 'rec709';
 }

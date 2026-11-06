@@ -4,14 +4,22 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 
 import { DEFAULT_GRADE, type Adjustments, type Effects, type Grade } from '../color/grade';
+import type { Detection } from '../color/identify';
 import type { ProfileId } from '../color/profiles';
 import type { AspectId } from '../engine/protocol';
 import { intlTag, tr } from '../i18n';
+import { releaseRef } from '../lib/fileRefs';
 import { uid } from '../lib/id';
 
 export type Clip = {
   id: string;
+  /** Where the file can be read now (for references: last resolved location). */
   uri: string;
+  /**
+   * Set when the clip points at the original file (Files app, external SSD)
+   * instead of a copy: iOS bookmark / Android document URI. See lib/fileRefs.
+   */
+  ref?: string | null;
   name: string;
   duration: number; // seconds
   width: number;
@@ -19,7 +27,8 @@ export type Clip = {
   size: number;
   thumb: string | null;
   input: ProfileId;
-  detection: { isLog: boolean; confidence: number } | null;
+  /** How the camera profile was chosen; older clips lack `source` (frame analysis). */
+  detection: Detection | null;
   trim: { start: number; end: number };
   /** Own grade, used only when the project is unlinked. */
   grade: Grade | null;
@@ -49,6 +58,8 @@ type ProjectStore = {
   removeClip: (id: string, clipId: string) => void;
   moveClip: (id: string, clipId: string, dir: -1 | 1) => void;
   updateClip: (id: string, clipId: string, patch: Partial<Clip>) => void;
+  /** New location for the same file (resolved reference, relink, made local); not an edit. */
+  relinkClip: (id: string, clipId: string, patch: Pick<Clip, 'uri'> & Partial<Pick<Clip, 'ref' | 'size'>>) => void;
   setInputAll: (id: string, input: ProfileId) => void;
   setLinked: (id: string, linked: boolean, fromClipId?: string) => void;
   setAspect: (id: string, aspect: AspectId) => void;
@@ -66,6 +77,12 @@ type ProjectStore = {
 export function effectiveGrade(p: Project, clip: Clip | undefined): Grade {
   if (!clip || p.linked) return p.grade;
   return clip.grade ?? p.grade;
+}
+
+/** Gives up the OS grant for references no project uses any more. */
+function releaseUnused(removed: Clip[], remaining: Project[]) {
+  const inUse = new Set(remaining.flatMap((p) => p.clips.map((c) => c.ref)).filter(Boolean));
+  for (const c of removed) if (c.ref && !inUse.has(c.ref)) releaseRef(c.ref);
 }
 
 const historyKey = (p: Project, clipId: string) => `${p.id}:${p.linked ? '*' : clipId}`;
@@ -105,7 +122,11 @@ export const useProjects = create<ProjectStore>()(
           set((s) => ({ projects: [project, ...s.projects] }));
           return project;
         },
-        remove: (id) => set((s) => ({ projects: s.projects.filter((p) => p.id !== id) })),
+        remove: (id) => {
+          const gone = find(id)?.clips ?? [];
+          set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+          releaseUnused(gone, get().projects);
+        },
         duplicate: (id) => {
           const p = find(id);
           if (!p) return null;
@@ -116,7 +137,11 @@ export const useProjects = create<ProjectStore>()(
         },
         rename: (id, name) => mutate(id, (p) => ({ ...p, name: name.trim() || p.name, updatedAt: Date.now() })),
         addClips: (id, clips) => mutate(id, (p) => ({ ...p, clips: [...p.clips, ...clips], updatedAt: Date.now() })),
-        removeClip: (id, clipId) => mutate(id, (p) => ({ ...p, clips: p.clips.filter((c) => c.id !== clipId), updatedAt: Date.now() })),
+        removeClip: (id, clipId) => {
+          const gone = find(id)?.clips.filter((c) => c.id === clipId) ?? [];
+          mutate(id, (p) => ({ ...p, clips: p.clips.filter((c) => c.id !== clipId), updatedAt: Date.now() }));
+          releaseUnused(gone, get().projects);
+        },
         moveClip: (id, clipId, dir) =>
           mutate(id, (p) => {
             const i = p.clips.findIndex((c) => c.id === clipId);
@@ -128,6 +153,7 @@ export const useProjects = create<ProjectStore>()(
           }),
         updateClip: (id, clipId, patch) =>
           mutate(id, (p) => ({ ...p, updatedAt: Date.now(), clips: p.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)) })),
+        relinkClip: (id, clipId, patch) => mutate(id, (p) => ({ ...p, clips: p.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)) })),
         setInputAll: (id, input) => mutate(id, (p) => ({ ...p, updatedAt: Date.now(), clips: p.clips.map((c) => ({ ...c, input })) })),
         setLinked: (id, linked, fromClipId) =>
           mutate(id, (p) => {

@@ -32,5 +32,34 @@ public class LutraEngineModule: Module {
     Function("cancel") {
       self.engine.cancel()
     }
+
+    // Files picked in place (references): see FileRefs.swift.
+    AsyncFunction("pickFiles") { (multiple: Bool, copy: Bool, promise: Promise) in
+      FileRefs.shared.pick(multiple: multiple, copy: copy, promise: promise)
+    }.runOnQueue(.main)
+
+    AsyncFunction("resolveRef") { (ref: String) -> String in
+      FileRefs.shared.resolve(ref)
+    }
+
+    Function("releaseRef") { (ref: String) in
+      FileRefs.shared.release(ref)
+    }
+
+    AsyncFunction("makeLocal") { (uri: String) -> String in
+      try FileRefs.shared.makeLocal(uri)
+    }
+
+    AsyncFunction("fileSize") { (uri: String) -> Double in
+      FileRefs.shared.stat(uri)
+    }
+
+    AsyncFunction("readBytes") { (uri: String, offset: Double, length: Int) -> Data in
+      try FileRefs.shared.read(uri, offset: offset, length: length)
+    }
+
+    AsyncFunction("mediaInfo") { (uri: String) async throws -> String in
+      try await FileRefs.shared.mediaInfo(uri)
+    }
   }
 }

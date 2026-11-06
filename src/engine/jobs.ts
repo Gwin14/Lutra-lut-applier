@@ -5,6 +5,7 @@ import { bytesToBase64 } from '../color/lut';
 import { tr } from '../i18n';
 import { builtInLookName } from '../i18n/content';
 import { dirs, fileSize } from '../lib/files';
+import { nativeFileSize, resolveRef } from '../lib/fileRefs';
 import { sanitizeFilename } from '../lib/format';
 import { hashString, uid } from '../lib/id';
 import { loadAllUserLuts, userLookResolver } from '../lib/userLuts';
@@ -53,8 +54,17 @@ export async function prepareJob(project: Project, clipIds: string[], preset: Ex
   const sources: Record<string, string> = {};
   const segmentFor = async (clip: Clip, i: number, count: number): Promise<RenderSegment> => {
     const key = `clip_${i}`;
-    sources[key] = clip.uri;
-    const size = fileSize(clip.uri) || clip.size;
+    let uri = clip.uri;
+    let size = 0;
+    if (clip.ref) {
+      // References: re-open the original (drive may have been reconnected elsewhere).
+      const r = await resolveRef(clip.ref);
+      if (!r.available || !r.uri) throw new Error(tr().exportSheet.clipRefMissing(clip.name));
+      uri = r.uri;
+      size = await nativeFileSize(uri);
+    }
+    sources[key] = uri;
+    size = size > 0 ? size : fileSize(uri) || clip.size;
     if (!size) throw new Error(tr().exportSheet.clipFileMissing(clip.name));
     const fade = preset.mode === 'merge' && preset.transition === 'fade' ? 0.35 : 0;
     const endsFade = preset.mode === 'merge' && preset.fadeEnds ? 0.6 : 0;

@@ -14,6 +14,7 @@ const run = async (entry, args = [], external = []) => {
 };
 
 await run('tests/color.test.ts');
+await run('tests/metadata.test.ts');
 
 if (process.argv.includes('--engine')) {
   const media = join(tmp, 'media');

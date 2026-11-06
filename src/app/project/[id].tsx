@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -9,7 +9,7 @@ import { isNeutralGrade } from '../../color/grade';
 import { getProfile } from '../../color/profiles';
 import type { ScopeMode } from '../../color/scopes';
 import { aspectValue } from '../../engine/geometry';
-import { addClipsTo, useImportState } from '../../features/importClips';
+import { addClipsTo, copyClipIntoApp, relocateClip, useCopyState, useImportState } from '../../features/importClips';
 import { ClipStrip } from '../../features/editor/ClipStrip';
 import { exportGradeCube, exportStill } from '../../features/editor/extras';
 import { AdjustPanel, EffectsPanel, FramePanel } from '../../features/editor/panels/AdjustPanels';
@@ -20,8 +20,8 @@ import { Timeline } from '../../features/editor/Timeline';
 import { ToolBar, type Tool } from '../../features/editor/ToolBar';
 import { Viewer } from '../../features/editor/Viewer';
 import { useT } from '../../i18n';
-import { fileExists } from '../../lib/files';
 import { haptic } from '../../lib/haptics';
+import { checkClip, useClipStatus, useFileWatcher } from '../../store/fileStatus';
 import { useLibrary } from '../../store/library';
 import { effectiveGrade, useHistoryState, useProjects, type Clip } from '../../store/projects';
 import { previewLutSize, useSettings } from '../../store/settings';
@@ -85,6 +85,9 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const adding = useImportState((s) => s.busy);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  useFileWatcher(projectId);
+  const fileStatus = useClipStatus(clip.id);
+  const copying = useCopyState((s) => !!s.copying[clip.id]);
   // Any landscape window (phone or tablet) gets two columns: preview | controls.
   const twoColumn = width > height;
   // Short landscape (phones): the clip strip moves into the controls column.
@@ -130,7 +133,19 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const [scopes, setScopes] = useState<ScopeMode | null>(null);
   const [scopesTick, setScopesTick] = useState(0);
   const [info, setInfo] = useState<VideoInfo | null>(null);
-  const missing = useMemo(() => !fileExists(clip.uri), [clip.uri]);
+  const missing = fileStatus === 'missing';
+  // A reference is only opened once it resolved (the OS grants access on resolve).
+  const ready = clip.ref ? fileStatus === 'ok' : !missing;
+
+  // Notice an unplugged drive while editing a referenced clip.
+  useEffect(() => {
+    if (!clip.ref || missing) return;
+    const iv = setInterval(() => {
+      const c = useProjects.getState().projects.find((p) => p.id === projectId)?.clips.find((x) => x.id === clip.id);
+      if (c) checkClip(projectId, c);
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [projectId, clip.id, clip.ref, missing]);
 
   const displayW = info?.width || clip.width || 16;
   const displayH = info?.height || clip.height || 9;
@@ -173,6 +188,8 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
     const i = project.clips.findIndex((x) => x.id === c.id);
     showActions(c.name, [
       { label: t.editor.cameraProfile, onPress: () => router.push({ pathname: '/profile/[id]', params: { id: project.id, clip: c.id } }) },
+      ...(c.ref ? [{ label: t.editor.relocate, onPress: () => relocateClip(project.id, c) }] : []),
+      ...(c.ref ? [{ label: t.editor.copyToApp, onPress: () => copyClipIntoApp(project.id, c) }] : []),
       ...(i > 0 ? [{ label: t.editor.moveLeft, onPress: () => store.moveClip(project.id, c.id, -1) }] : []),
       ...(i < project.clips.length - 1 ? [{ label: t.editor.moveRight, onPress: () => store.moveClip(project.id, c.id, 1) }] : []),
       {
@@ -274,12 +291,33 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   );
 
   const viewer = missing ? (
-    <View style={{ flex: 1, justifyContent: 'center', padding: space.l, backgroundColor: g.viewer }}>
-      <InlineNotice tone="error" title={t.editor.missingTitle} message={t.editor.missingMessage} />
+    <View style={{ flex: 1, justifyContent: 'center', padding: space.l, backgroundColor: g.viewer, gap: space.m }}>
+      {clip.ref ? (
+        <InlineNotice
+          tone="warning"
+          title={t.editor.refMissingTitle}
+          message={t.editor.refMissingMessage}
+          action={<Button label={t.editor.relocate} variant="secondary" size="small" icon="folder" onPress={() => relocateClip(project.id, clip)} />}
+        />
+      ) : (
+        <InlineNotice tone="error" title={t.editor.missingTitle} message={t.editor.missingMessage} />
+      )}
+      {clip.ref ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.s }}>
+          <ActivityIndicator size="small" color={g.labelSecondary} />
+          <Text variant="footnote" tone="secondary">
+            {t.editor.refWaiting}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  ) : !ready ? (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: g.viewer }}>
+      <ActivityIndicator color={g.labelSecondary} />
     </View>
   ) : (
     <Viewer
-      key={clip.id}
+      key={`${clip.id}:${clip.uri}`}
       uri={clip.uri}
       aspect={aspect}
       lut={baked}
@@ -299,7 +337,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
       isPaused={isPaused}
       onTogglePlay={togglePlay}
       onInfo={setInfo}
-      badge={falseColor ? t.editor.falseColorBadge : null}
+      badge={falseColor ? t.editor.falseColorBadge : copying ? t.editor.copying : null}
     />
   );
 

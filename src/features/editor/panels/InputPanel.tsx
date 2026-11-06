@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { getProfile } from '../../../color/profiles';
+import { getProfile, type ProfileId } from '../../../color/profiles';
 import { useT } from '../../../i18n';
 import { profileText } from '../../../i18n/content';
 import { haptic } from '../../../lib/haptics';
@@ -10,6 +10,34 @@ import { space } from '../../../theme/tokens';
 import { Button } from '../../../ui/Button';
 import { Row, Section, SwitchRow } from '../../../ui/List';
 import { InlineNotice } from '../../../ui/States';
+
+/** Says where the profile came from: the file's metadata, the camera brand, or the frame. */
+function DetectionNotice({ detection: d, chosen }: { detection: NonNullable<Clip['detection']>; chosen: ProfileId }) {
+  const t = useT();
+  const l = t.inputPanel;
+  const detected = profileText(d.profile ?? chosen, t).name;
+  const displayChosen = getProfile(chosen).kind === 'display';
+  if (d.source === 'metadata') {
+    return <InlineNotice title={l.fromMetadata(detected)} message={l.fromMetadataMessage(d.evidence ?? '', d.camera ?? null)} />;
+  }
+  if (d.source === 'camera' && d.camera) {
+    return (
+      <InlineNotice
+        tone={d.isLog && displayChosen ? 'warning' : 'info'}
+        title={l.fromCamera(d.camera)}
+        message={d.isLog && displayChosen ? l.logButDisplay : d.isLog ? l.fromCameraLog(detected) : l.fromCameraNormal}
+      />
+    );
+  }
+  if (d.source === 'none') return null;
+  return (
+    <InlineNotice
+      tone={d.isLog && displayChosen ? 'warning' : 'info'}
+      title={d.isLog ? l.looksLog(Math.round(d.confidence * 100)) : l.looksCorrected}
+      message={d.isLog && displayChosen ? l.logButDisplay : d.source === 'image' ? l.noMetadata : d.isLog ? l.logDetected : l.normalDetected}
+    />
+  );
+}
 
 export function InputPanel({ project, clip }: { project: Project; clip: Clip }) {
   const t = useT();
@@ -34,19 +62,7 @@ export function InputPanel({ project, clip }: { project: Project; clip: Clip }) 
         />
       </Section>
 
-      {d ? (
-        <InlineNotice
-          tone={d.isLog && profile.kind === 'display' ? 'warning' : 'info'}
-          title={d.isLog ? l.looksLog(Math.round(d.confidence * 100)) : l.looksCorrected}
-          message={
-            d.isLog && profile.kind === 'display'
-              ? l.logButDisplay
-              : d.isLog
-                ? l.logDetected
-                : l.normalDetected
-          }
-        />
-      ) : null}
+      {d ? <DetectionNotice detection={d} chosen={clip.input} /> : null}
 
       {others.length ? (
         <View style={{ gap: space.m }}>

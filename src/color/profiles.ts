@@ -40,8 +40,6 @@ export type CameraProfile = {
   legal: boolean;
   /** Multiplier applied after decoding so 18% grey lands at 0.18. */
   norm: number;
-  /** Lowercase filename prefixes typical for the brand (auto-detect hint). */
-  filenameHints: string[];
   decode: (x: number) => number;
 };
 
@@ -157,7 +155,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'rec709',
     legal: false,
     norm: 1,
-    filenameHints: [],
     decode: (x) => x,
   },
   {
@@ -169,7 +166,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'rec2020',
     legal: false,
     norm: 1,
-    filenameHints: ['img_'],
     decode: applelog,
   },
   {
@@ -181,7 +177,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'sGamut3Cine',
     legal: true,
     norm: 1,
-    filenameHints: ['c0', 'dsc0'],
     decode: slog3,
   },
   {
@@ -193,7 +188,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'sGamut3',
     legal: false,
     norm: 1,
-    filenameHints: [],
     decode: slog2,
   },
   {
@@ -205,7 +199,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'vGamut',
     legal: true,
     norm: 1,
-    filenameHints: ['p1', 'p10'],
     decode: vlog,
   },
   {
@@ -217,7 +210,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'cinemaGamut',
     legal: false,
     norm: 1,
-    filenameHints: ['mvi_', 'a0'],
     decode: clog3,
   },
   {
@@ -229,7 +221,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'cinemaGamut',
     legal: false,
     norm: 1,
-    filenameHints: [],
     decode: clog2,
   },
   {
@@ -241,7 +232,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'awg4',
     legal: true,
     norm: 1,
-    filenameHints: [],
     decode: logc4,
   },
   {
@@ -253,7 +243,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'awg3',
     legal: true,
     norm: 1,
-    filenameHints: [],
     decode: logc3,
   },
   {
@@ -265,7 +254,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'rec2020',
     legal: true,
     norm: 1,
-    filenameHints: ['dscf'],
     decode: flog2,
   },
   {
@@ -277,7 +265,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'rec2020',
     legal: true,
     norm: 1,
-    filenameHints: [],
     decode: flog,
   },
   {
@@ -289,7 +276,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'rec2020',
     legal: true,
     norm: 1,
-    filenameHints: ['dsc_'],
     decode: nlog,
   },
   {
@@ -301,7 +287,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'dGamut',
     legal: true,
     norm: 1,
-    filenameHints: ['dji_'],
     decode: dlog,
   },
   {
@@ -313,7 +298,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'bmdWideGamut',
     legal: false,
     norm: 1,
-    filenameHints: [],
     decode: bmdfilm5,
   },
   {
@@ -325,7 +309,6 @@ export const PROFILES: CameraProfile[] = [
     gamut: 'protuneNative',
     legal: false,
     norm: 1,
-    filenameHints: ['gx', 'gh', 'gopr'],
     decode: protune,
   },
   {
@@ -338,7 +321,6 @@ export const PROFILES: CameraProfile[] = [
     legal: false,
     // HLG 18% grey sits near 38% signal -> E ≈ 0.048 scene light.
     norm: 3.74,
-    filenameHints: [],
     decode: hlg,
   },
 ];

@@ -48,6 +48,8 @@ export const ICONS = {
   storage: ['internaldrive', 'storage'],
   sun: ['sun.max', 'wb_sunny'],
   link: ['link', 'call_merge'],
+  reference: ['link', 'link'],
+  linkOff: ['exclamationmark', 'link_off'],
   sparkle: ['sparkles', 'star'],
   folder: ['folder', 'folder_open'],
   clock: ['clock', 'schedule'],

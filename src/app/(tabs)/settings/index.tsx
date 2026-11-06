@@ -61,6 +61,15 @@ export default function SettingsScreen() {
         />
       </Section>
 
+      <Section title={t.settings.filesImport} footer={t.settings.filesImportFooter}>
+        <Segmented<Settings['filesImport']>
+          values={['reference', 'copy']}
+          labels={[t.settings.filesImportReference, t.settings.filesImportCopy]}
+          value={s.filesImport}
+          onChange={(v) => s.set('filesImport', v)}
+        />
+      </Section>
+
       <Section title={t.settings.export}>
         <SwitchRow title={t.settings.saveToPhotos} subtitle={t.settings.album(s.albumName)} value={s.saveToPhotos} onValueChange={(v) => s.set('saveToPhotos', v)} />
         <Row title={t.settings.filesInApp} value={formatBytes(storage)} />

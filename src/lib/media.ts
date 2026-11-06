@@ -2,11 +2,14 @@ import { AlphaType, ColorType, Skia } from '@shopify/react-native-skia';
 import * as ImagePicker from 'expo-image-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 
-import { frameStats, judgeLog, suggestProfile, type LogVerdict } from '../color/detect';
+import { probeContainer } from '../color/container';
+import { frameStats, judgeLog, type LogVerdict } from '../color/detect';
+import { identifyProfile } from '../color/identify';
 import type { ProfileId } from '../color/profiles';
 import type { Clip } from '../store/projects';
 import { intlTag, tr } from '../i18n';
 import { fileSize } from './files';
+import { mediaInfo, openReader } from './fileRefs';
 import { uid } from './id';
 
 export async function pickVideos(): Promise<ImagePicker.ImagePickerAsset[]> {
@@ -63,27 +66,48 @@ export async function analyzeLog(imageUri: string): Promise<LogVerdict | null> {
 }
 
 /** The fields a clip needs; picker assets and shared files both provide them. */
-export type VideoInput = Pick<ImagePicker.ImagePickerAsset, 'uri' | 'duration' | 'fileName' | 'width' | 'height' | 'fileSize'>;
+export type VideoInput = Pick<ImagePicker.ImagePickerAsset, 'uri' | 'duration' | 'fileName' | 'width' | 'height' | 'fileSize'> & {
+  /** Persistent reference when the file stays where it is (Files / external drive). */
+  ref?: string | null;
+};
+
+/** Reads the container's metadata; never throws (unreadable files fall back to the frame). */
+async function probe(uri: string) {
+  try {
+    const reader = await openReader(uri);
+    return reader ? await probeContainer(reader) : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function clipFromAsset(
   asset: VideoInput,
   opts: { autoDetect: boolean; preferredLog: ProfileId },
 ): Promise<Clip> {
-  const duration = (asset.duration ?? 0) / 1000;
+  const info = await mediaInfo(asset.uri);
+  const duration = asset.duration ? asset.duration / 1000 : (info?.duration ?? 0);
   const thumb = await thumbnailAt(asset.uri, Math.min(1, duration * 0.3));
-  const verdict = opts.autoDetect && thumb ? await analyzeLog(thumb.uri) : null;
-  const input = opts.autoDetect ? suggestProfile(asset.fileName, verdict, opts.preferredLog) : opts.preferredLog;
+  let input: ProfileId = opts.preferredLog;
+  let detection: Clip['detection'] = null;
+  if (opts.autoDetect) {
+    const [container, verdict] = await Promise.all([probe(asset.uri), thumb ? analyzeLog(thumb.uri) : Promise.resolve(null)]);
+    const r = identifyProfile({ container, decoder: info?.decoder ?? null, verdict, preferredLog: opts.preferredLog });
+    input = r.input;
+    detection = r.detection;
+  }
   return {
     id: uid(),
     uri: asset.uri,
+    ref: asset.ref ?? null,
     name: asset.fileName ?? tr().project.defaultClipName(new Date().toLocaleTimeString(intlTag())),
     duration,
-    width: asset.width,
-    height: asset.height,
+    width: asset.width || info?.width || 0,
+    height: asset.height || info?.height || 0,
     size: asset.fileSize ?? fileSize(asset.uri),
     thumb: thumb?.uri ?? null,
     input,
-    detection: verdict ? { isLog: verdict.isLog, confidence: verdict.confidence } : null,
+    detection,
     trim: { start: 0, end: duration },
     grade: null,
   };
