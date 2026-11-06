@@ -1,14 +1,15 @@
 import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
 import { compileBuiltInLook, lookSwatches } from '../../../color/looks';
-import { getProfile } from '../../../color/profiles';
 import { lookName } from '../../../engine/jobs';
-import { startNewBatch, useImportState } from '../../../features/importClips';
+import { startBatchFromShare, startNewBatch, useImportState } from '../../../features/importClips';
 import { LookSwatches } from '../../../features/LookSwatches';
-import { formatDuration, formatRelative, plural } from '../../../lib/format';
+import { useT } from '../../../i18n';
+import { lookText, profileText } from '../../../i18n/content';
+import { formatDuration, formatRelative } from '../../../lib/format';
 import { GradedThumb } from '../../../preview/GradedThumb';
 import { effectiveGrade, useProjects, type Project } from '../../../store/projects';
 import { radius, space } from '../../../theme/tokens';
@@ -23,24 +24,25 @@ import { lookOfTheDay } from '../../../widgets';
 
 function NewBatchCard() {
   const c = usePalette();
+  const t = useT();
   const busy = useImportState((s) => s.busy);
   const done = useImportState((s) => s.done);
   const total = useImportState((s) => s.total);
   return (
     <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: 'continuous', padding: space.xl, gap: space.l }}>
       <View style={{ gap: space.xs }}>
-        <Text variant="title3">Novo lote</Text>
+        <Text variant="title3">{t.studio.newBatchTitle}</Text>
         <Text variant="subhead" tone="secondary">
-          Escolha vários clipes em log. O Lutra detecta o perfil de cada um e aplica o mesmo look em todos.
+          {t.studio.newBatchBody}
         </Text>
       </View>
       {busy ? (
         <View style={{ gap: space.s }}>
-          <Text variant="footnote" tone="secondary" tabular>{`Analisando ${Math.min(done + 1, total)} de ${total} clipes…`}</Text>
+          <Text variant="footnote" tone="secondary" tabular>{total ? t.studio.analyzing(Math.min(done + 1, total), total) : t.studio.receiving}</Text>
           <ProgressBar value={total ? done / total : 0} />
         </View>
       ) : (
-        <Button label="Escolher vídeos" icon="add" size="large" onPress={() => startNewBatch()} stretch />
+        <Button label={t.studio.chooseVideos} icon="add" size="large" onPress={() => startNewBatch()} stretch />
       )}
     </View>
   );
@@ -48,22 +50,25 @@ function NewBatchCard() {
 
 function LookOfDayCard() {
   const c = usePalette();
+  const t = useT();
   const look = lookOfTheDay();
-  const sw = useMemo(() => lookSwatches(compileBuiltInLook(look.id)), [look.id]);
+  const text = lookText(look, t);
+  // One card, five samples: cheap enough to compute per render.
+  const sw = lookSwatches(compileBuiltInLook(look.id));
   return (
     <PressableScale
       onPress={() => router.push({ pathname: '/look/[id]', params: { id: look.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`Look do dia: ${look.name}`}
+      accessibilityLabel={t.studio.lookOfDayA11y(text.name)}
       style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: 'continuous', padding: space.l, flexDirection: 'row', alignItems: 'center', gap: space.m }}
     >
       <View style={{ flex: 1, gap: 4 }}>
         <Text variant="caption1" tone="accent" weight="600" style={{ textTransform: 'uppercase' }}>
-          Look do dia
+          {t.studio.lookOfDay}
         </Text>
-        <Text variant="headline">{look.name}</Text>
+        <Text variant="headline">{text.name}</Text>
         <Text variant="footnote" tone="secondary" numberOfLines={1}>
-          {look.description}
+          {text.description}
         </Text>
       </View>
       <LookSwatches colors={sw} size={14} />
@@ -74,20 +79,21 @@ function LookOfDayCard() {
 
 function ProjectCard({ project }: { project: Project }) {
   const c = usePalette();
+  const t = useT();
   const thumbs = project.clips.slice(0, 3).map((cl) => cl.thumb);
   const duration = project.clips.reduce((n, cl) => n + Math.max(0, cl.trim.end - cl.trim.start), 0);
-  const profiles = [...new Set(project.clips.map((cl) => getProfile(cl.input).name))];
+  const profiles = [...new Set(project.clips.map((cl) => profileText(cl.input, t).name))];
   const look = lookName(project.grade.lookId);
   const open = () => router.push({ pathname: '/project/[id]', params: { id: project.id } });
   const actions = () =>
     showActions(project.name, [
-      { label: 'Renomear', onPress: () => router.push({ pathname: '/rename/[id]', params: { id: project.id } }) },
-      { label: 'Duplicar', onPress: () => useProjects.getState().duplicate(project.id) },
+      { label: t.studio.rename, onPress: () => router.push({ pathname: '/rename/[id]', params: { id: project.id } }) },
+      { label: t.studio.duplicate, onPress: () => useProjects.getState().duplicate(project.id) },
       {
-        label: 'Excluir lote',
+        label: t.studio.deleteBatch,
         destructive: true,
         onPress: () =>
-          confirmDestructive('Excluir lote?', 'Os vídeos originais na sua galeria não são afetados.', 'Excluir', () => useProjects.getState().remove(project.id)),
+          confirmDestructive(t.studio.deleteBatchTitle, t.studio.deleteBatchMessage, t.common.delete, () => useProjects.getState().remove(project.id)),
       },
     ]);
   return (
@@ -95,8 +101,8 @@ function ProjectCard({ project }: { project: Project }) {
       onPress={open}
       onLongPress={actions}
       accessibilityRole="button"
-      accessibilityLabel={`${project.name}, ${plural(project.clips.length, 'clipe', 'clipes')}`}
-      accessibilityHint="Toque e segure para mais opções"
+      accessibilityLabel={`${project.name}, ${t.common.clips(project.clips.length)}`}
+      accessibilityHint={t.studio.longPressHint}
       style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden' }}
     >
       <View style={{ flexDirection: 'row', height: 120, gap: 2 }}>
@@ -118,7 +124,7 @@ function ProjectCard({ project }: { project: Project }) {
           </Text>
         </View>
         <Text variant="footnote" tone="secondary" numberOfLines={1} tabular>
-          {[plural(project.clips.length, 'clipe', 'clipes'), formatDuration(duration), profiles.slice(0, 2).join(', '), look].filter(Boolean).join(' · ')}
+          {[t.common.clips(project.clips.length), formatDuration(duration), profiles.slice(0, 2).join(', '), look].filter(Boolean).join(' · ')}
         </Text>
       </View>
     </PressableScale>
@@ -126,30 +132,32 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 export default function StudioScreen() {
+  const t = useT();
   const projects = useProjects((s) => s.projects);
   const error = useImportState((s) => s.error);
   const { width } = useWindowDimensions();
   const columns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
-  const params = useLocalSearchParams<{ action?: string; look?: string }>();
+  const params = useLocalSearchParams<{ action?: string; look?: string; t?: string }>();
   const handled = useRef<string | null>(null);
 
   // Widget deep link: lutra:///?action=new&look=<id>
+  // Share sheet (via +native-intent): /?action=shared&t=<nonce>
   useEffect(() => {
-    const token = `${params.action}:${params.look}`;
-    if (params.action === 'new' && handled.current !== token) {
-      handled.current = token;
-      startNewBatch({ lookId: params.look });
-    }
-  }, [params.action, params.look]);
+    const token = `${params.action}:${params.look}:${params.t}`;
+    if (!params.action || handled.current === token) return;
+    handled.current = token;
+    if (params.action === 'new') startNewBatch({ lookId: params.look });
+    else if (params.action === 'shared') startBatchFromShare();
+  }, [params.action, params.look, params.t]);
 
   const header = (
     <View style={{ gap: space.l, paddingBottom: space.l }}>
       <NewBatchCard />
-      {error ? <InlineNotice tone="error" title="Não foi possível importar" message={error} /> : null}
+      {error ? <InlineNotice tone="error" title={t.studio.importFailed} message={error} /> : null}
       <LookOfDayCard />
       {projects.length ? (
         <Text variant="title3" style={{ marginTop: space.s }}>
-          Lotes recentes
+          {t.studio.recent}
         </Text>
       ) : null}
     </View>
@@ -173,8 +181,8 @@ export default function StudioScreen() {
       ListEmptyComponent={
         <EmptyState
           icon="library"
-          title="Nenhum lote ainda"
-          message="Seus lotes aparecem aqui com o look aplicado e o progresso de cada exportação."
+          title={t.studio.emptyTitle}
+          message={t.studio.emptyMessage}
         />
       }
     />

@@ -1,7 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, useWindowDimensions, View } from 'react-native';
-import { useAnimatedReaction, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -14,10 +14,12 @@ import { ClipStrip } from '../../features/editor/ClipStrip';
 import { exportGradeCube, exportStill } from '../../features/editor/extras';
 import { AdjustPanel, EffectsPanel, FramePanel } from '../../features/editor/panels/AdjustPanels';
 import { InputPanel } from '../../features/editor/panels/InputPanel';
+import { PANEL_EASE, PANEL_MS, PanelHandle } from '../../features/editor/PanelHandle';
 import { LookPanel } from '../../features/editor/panels/LookPanel';
 import { Timeline } from '../../features/editor/Timeline';
 import { ToolBar, type Tool } from '../../features/editor/ToolBar';
 import { Viewer } from '../../features/editor/Viewer';
+import { useT } from '../../i18n';
 import { fileExists } from '../../lib/files';
 import { haptic } from '../../lib/haptics';
 import { useLibrary } from '../../store/library';
@@ -33,10 +35,13 @@ import { PressableScale } from '../../ui/Pressable';
 import { EmptyState, InlineNotice } from '../../ui/States';
 import { Text } from '../../ui/Text';
 
+const STRIP_H = 56 + space.s * 2;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 const SCOPE_CYCLE: (ScopeMode | null)[] = [null, 'histogram', 'waveform', 'parade'];
-const SCOPE_LABEL: Record<ScopeMode, string> = { histogram: 'Histograma', waveform: 'Waveform', parade: 'Parade RGB' };
 
 export default function EditorScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const project = useProjects((s) => s.projects.find((p) => p.id === id));
   const [clipId, setClipId] = useState<string | undefined>(project?.clips[0]?.id);
@@ -50,7 +55,7 @@ export default function EditorScreen() {
     return (
       <PaletteScope palette={g} scheme="dark">
         <Stack.Screen options={{ title: '' }} />
-        <EmptyState icon="library" title="Lote não encontrado" message="Ele pode ter sido excluído em outra tela." action={<Button label="Voltar" onPress={() => router.back()} />} />
+        <EmptyState icon="library" title={t.editor.notFoundTitle} message={t.editor.notFoundMessage} action={<Button label={t.common.back} onPress={() => router.back()} />} />
       </PaletteScope>
     );
   }
@@ -60,9 +65,9 @@ export default function EditorScreen() {
         <Stack.Screen options={{ title: project.name }} />
         <EmptyState
           icon="add"
-          title="Lote vazio"
-          message="Adicione clipes para começar a aplicar looks."
-          action={<Button label="Adicionar clipes" icon="add" onPress={() => addClipsTo(project.id)} />}
+          title={t.editor.emptyTitle}
+          message={t.editor.emptyMessage}
+          action={<Button label={t.editor.addClips} icon="add" onPress={() => addClipsTo(project.id)} />}
         />
       </PaletteScope>
     );
@@ -71,6 +76,7 @@ export default function EditorScreen() {
 }
 
 function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Clip; onSelectClip: (id: string) => void }) {
+  const t = useT();
   const project = useProjects((s) => s.projects.find((p) => p.id === projectId))!;
   const grade = effectiveGrade(project, clip);
   const quality = useSettings((s) => s.previewQuality);
@@ -79,7 +85,36 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const adding = useImportState((s) => s.busy);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const wide = width >= 900 && width > height;
+  // Any landscape window (phone or tablet) gets two columns: preview | controls.
+  const twoColumn = width > height;
+  // Short landscape (phones): the clip strip moves into the controls column.
+  const compactHeight = twoColumn && height < 500;
+  const large = useSettings((s) => s.editorPanel === 'large');
+  const panel = useSharedValue(large ? 1 : 0);
+  useEffect(() => {
+    panel.set(withTiming(large ? 1 : 0, { duration: PANEL_MS, easing: PANEL_EASE }));
+  }, [large, panel]);
+  const setLarge = useCallback(
+    (v: boolean) => {
+      if (v === (useSettings.getState().editorPanel === 'large')) return;
+      haptic.selection();
+      useSettings.getState().set('editorPanel', v ? 'large' : 'normal');
+    },
+    [],
+  );
+
+  // Portrait: the preview shrinks and the clip strip folds away.
+  const viewerNormal = Math.min(height * 0.4, width * 1.1);
+  const viewerLarge = Math.min(viewerNormal, Math.max(140, height * 0.22));
+  const portraitRange = viewerNormal - viewerLarge + STRIP_H;
+  // Two columns: the controls column widens.
+  const panelNormal = clamp(width * 0.36, 300, 420);
+  const panelLarge = clamp(width * 0.52, panelNormal + 80, 640);
+  const columnRange = panelLarge - panelNormal;
+
+  const viewerStyle = useAnimatedStyle(() => ({ height: viewerNormal - (viewerNormal - viewerLarge) * panel.value }));
+  const stripStyle = useAnimatedStyle(() => ({ height: STRIP_H * (1 - panel.value), opacity: 1 - panel.value }));
+  const columnStyle = useAnimatedStyle(() => ({ width: panelNormal + columnRange * panel.value + insets.right }));
 
   const paused = useSharedValue(false);
   const seek = useSharedValue<number | null>(null);
@@ -137,42 +172,42 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const clipActions = (c: Clip) => {
     const i = project.clips.findIndex((x) => x.id === c.id);
     showActions(c.name, [
-      { label: 'Perfil de câmera…', onPress: () => router.push({ pathname: '/profile/[id]', params: { id: project.id, clip: c.id } }) },
-      ...(i > 0 ? [{ label: 'Mover para a esquerda', onPress: () => store.moveClip(project.id, c.id, -1) }] : []),
-      ...(i < project.clips.length - 1 ? [{ label: 'Mover para a direita', onPress: () => store.moveClip(project.id, c.id, 1) }] : []),
+      { label: t.editor.cameraProfile, onPress: () => router.push({ pathname: '/profile/[id]', params: { id: project.id, clip: c.id } }) },
+      ...(i > 0 ? [{ label: t.editor.moveLeft, onPress: () => store.moveClip(project.id, c.id, -1) }] : []),
+      ...(i < project.clips.length - 1 ? [{ label: t.editor.moveRight, onPress: () => store.moveClip(project.id, c.id, 1) }] : []),
       {
-        label: 'Remover do lote',
+        label: t.editor.removeFromBatch,
         destructive: true,
-        onPress: () => confirmDestructive('Remover clipe?', 'O vídeo original continua na sua galeria.', 'Remover', () => store.removeClip(project.id, c.id)),
+        onPress: () => confirmDestructive(t.editor.removeClipTitle, t.editor.removeClipMessage, t.common.remove, () => store.removeClip(project.id, c.id)),
       },
     ]);
   };
 
   const moreActions = () =>
-    showActions('Lote', [
+    showActions(t.editor.batch, [
       {
-        label: 'Exportar quadro atual (PNG)',
+        label: t.editor.exportFrame,
         onPress: async () => {
           try {
             const r = await exportStill(clip, grade, project.aspect, time.value, 'png');
             haptic.success();
-            Alert.alert('Quadro exportado', r.saved ? `Salvo na Galeria (${r.width}×${r.height}).` : `Arquivo salvo no app (${r.width}×${r.height}). Permita o acesso à Galeria para salvar lá.`);
+            Alert.alert(t.editor.frameExported, r.saved ? t.editor.frameSaved(r.width, r.height) : t.editor.frameSavedInApp(r.width, r.height));
           } catch (e) {
             haptic.error();
-            Alert.alert('Não foi possível exportar o quadro', (e as Error).message);
+            Alert.alert(t.editor.frameFailed, (e as Error).message);
           }
         },
       },
-      { label: 'Exportar grade como LUT 33³ (.cube)', onPress: () => exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert('Erro', String(e?.message ?? e))) },
-      { label: 'Exportar grade como LUT 65³ (.cube)', onPress: () => exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert('Erro', String(e?.message ?? e))) },
+      { label: t.editor.exportCube(33), onPress: () => exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
+      { label: t.editor.exportCube(65), onPress: () => exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
       {
-        label: 'Salvar como receita',
+        label: t.editor.saveRecipe,
         onPress: () => {
           useLibrary.getState().addRecipe(`${project.name}`, grade, clip.input);
           haptic.success();
         },
       },
-      { label: 'Renomear lote', onPress: () => router.push({ pathname: '/rename/[id]', params: { id: project.id } }) },
+      { label: t.editor.renameBatch, onPress: () => router.push({ pathname: '/rename/[id]', params: { id: project.id } }) },
     ]);
 
   const dots = {
@@ -186,10 +221,10 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const controls = (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.l, paddingVertical: space.s }}>
       <View style={{ flexDirection: 'row', gap: space.s }}>
-        <IconButton icon={isPaused ? 'play' : 'pause'} label={isPaused ? 'Reproduzir' : 'Pausar'} onPress={togglePlay} />
+        <IconButton icon={isPaused ? 'play' : 'pause'} label={isPaused ? t.editor.play : t.editor.pause} onPress={togglePlay} />
         <IconButton
           icon={muted ? 'speakerOff' : 'speaker'}
-          label={muted ? 'Ativar som' : 'Silenciar'}
+          label={muted ? t.editor.unmute : t.editor.mute}
           tone="clear"
           color={g.label}
           onPress={() => {
@@ -202,7 +237,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
       <View style={{ flexDirection: 'row', gap: space.xs }}>
         <IconButton
           icon="compare"
-          label="Comparar antes e depois"
+          label={t.editor.compare}
           tone="clear"
           active={compare}
           onPress={() => {
@@ -214,7 +249,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
         />
         <IconButton
           icon="scopes"
-          label={scopes ? `Scopes: ${SCOPE_LABEL[scopes]}` : 'Mostrar scopes'}
+          label={scopes ? t.editor.scopesOn({ histogram: t.editor.histogram, waveform: t.editor.waveform, parade: t.editor.parade }[scopes]) : t.editor.showScopes}
           tone="clear"
           active={!!scopes}
           onPress={() => {
@@ -222,13 +257,13 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
             haptic.selection();
           }}
         />
-        <IconButton icon="falseColor" label="Falsa cor (exposição)" tone="clear" active={falseColor} onPress={() => setFalseColor((v) => !v)} />
-        <IconButton icon="zebra" label="Zebra (altas estouradas)" tone="clear" active={zebra} onPress={() => setZebra((v) => !v)} />
+        <IconButton icon="falseColor" label={t.editor.falseColor} tone="clear" active={falseColor} onPress={() => setFalseColor((v) => !v)} />
+        <IconButton icon="zebra" label={t.editor.zebra} tone="clear" active={zebra} onPress={() => setZebra((v) => !v)} />
       </View>
     </View>
   );
 
-  const panel = (
+  const panelBody = (
     <ScrollView key={tool} contentContainerStyle={{ paddingTop: space.l, paddingBottom: insets.bottom + space.xxxl }} keyboardShouldPersistTaps="handled">
       {tool === 'input' ? <InputPanel project={project} clip={clip} /> : null}
       {tool === 'look' ? <LookPanel project={project} clip={clip} grade={grade} /> : null}
@@ -240,7 +275,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
 
   const viewer = missing ? (
     <View style={{ flex: 1, justifyContent: 'center', padding: space.l, backgroundColor: g.viewer }}>
-      <InlineNotice tone="error" title="Arquivo do clipe indisponível" message="O sistema pode ter limpado o cache de importação. Remova o clipe e importe de novo pela galeria." />
+      <InlineNotice tone="error" title={t.editor.missingTitle} message={t.editor.missingMessage} />
     </View>
   ) : (
     <Viewer
@@ -264,7 +299,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
       isPaused={isPaused}
       onTogglePlay={togglePlay}
       onInfo={setInfo}
-      badge={falseColor ? 'Falsa cor' : null}
+      badge={falseColor ? t.editor.falseColorBadge : null}
     />
   );
 
@@ -293,44 +328,49 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           headerTitleStyle: { color: g.label },
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
-              <IconButton icon="undo" label="Desfazer" tone="clear" color={g.label} disabled={!canUndo} onPress={() => store.undo(project.id, clip.id)} size={38} />
-              <IconButton icon="redo" label="Refazer" tone="clear" color={g.label} disabled={!canRedo} onPress={() => store.redo(project.id, clip.id)} size={38} />
-              <IconButton icon="more" label="Mais opções" tone="clear" color={g.label} onPress={moreActions} size={38} />
+              <IconButton icon="undo" label={t.editor.undo} tone="clear" color={g.label} disabled={!canUndo} onPress={() => store.undo(project.id, clip.id)} size={38} />
+              <IconButton icon="redo" label={t.editor.redo} tone="clear" color={g.label} disabled={!canRedo} onPress={() => store.redo(project.id, clip.id)} size={38} />
+              <IconButton icon="more" label={t.editor.moreOptions} tone="clear" color={g.label} onPress={moreActions} size={38} />
               <PressableScale
                 onPress={() => router.push({ pathname: '/export/[id]', params: { id: project.id } })}
                 accessibilityRole="button"
-                accessibilityLabel="Exportar"
+                accessibilityLabel={t.editor.export}
                 style={{ height: 34, paddingHorizontal: space.m + 2, borderRadius: radius.pill, backgroundColor: g.accent, justifyContent: 'center', marginLeft: space.xs }}
               >
                 <Text variant="subhead" weight="600" color={g.onAccent}>
-                  Exportar
+                  {t.editor.export}
                 </Text>
               </PressableScale>
             </View>
           ),
         }}
       />
-      {wide ? (
+      {twoColumn ? (
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: g.bg }}>
-          <View style={{ flex: 1, paddingBottom: insets.bottom + space.s, gap: space.s }}>
+          <View style={{ flex: 1, paddingLeft: insets.left, paddingBottom: insets.bottom + space.s, gap: space.s }}>
             {viewer}
             {controls}
             {timeline}
-            {strip}
+            {compactHeight ? null : strip}
           </View>
-          <View style={{ width: 400, borderLeftWidth: 0.5, borderColor: g.separator, backgroundColor: g.surface }}>
+          <Animated.View style={[{ paddingRight: insets.right, borderLeftWidth: 0.5, borderColor: g.separator, backgroundColor: g.surface }, columnStyle]}>
+            <PanelHandle axis="x" progress={panel} range={columnRange} expanded={large} onChange={setLarge} />
+            {compactHeight ? <View style={{ paddingVertical: space.s, backgroundColor: g.bg }}>{strip}</View> : null}
             <ToolBar value={tool} onChange={setTool} dots={dots} />
-            {panel}
-          </View>
+            {panelBody}
+          </Animated.View>
         </View>
       ) : (
         <View style={{ flex: 1, backgroundColor: g.bg }}>
-          <View style={{ height: Math.min(height * 0.4, width * 1.1) }}>{viewer}</View>
+          <Animated.View style={viewerStyle}>{viewer}</Animated.View>
           {controls}
           {timeline}
-          <View style={{ paddingVertical: space.s }}>{strip}</View>
+          <Animated.View pointerEvents={large ? 'none' : 'auto'} style={[{ overflow: 'hidden', justifyContent: 'center' }, stripStyle]}>
+            {strip}
+          </Animated.View>
+          <PanelHandle axis="y" progress={panel} range={portraitRange} expanded={large} onChange={setLarge} />
           <ToolBar value={tool} onChange={setTool} dots={dots} />
-          <View style={{ flex: 1, backgroundColor: g.surface }}>{panel}</View>
+          <View style={{ flex: 1, backgroundColor: g.surface }}>{panelBody}</View>
         </View>
       )}
     </PaletteScope>

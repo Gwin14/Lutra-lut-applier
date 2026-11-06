@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 
 import type { ContainerId, EngineCaps, VideoCodecId } from '../engine/protocol';
+import { tr } from '../i18n';
 
 export type ExportStatus = 'queued' | 'preparing' | 'rendering' | 'done' | 'failed' | 'canceled';
 
@@ -82,7 +83,7 @@ export const useExports = create<ExportStore>()(
         const records = (p?.records ?? []).map((r) =>
           r.status === 'done' || r.status === 'failed' || r.status === 'canceled'
             ? r
-            : { ...r, status: 'failed' as const, error: 'Interrompido: o app foi fechado durante a exportação.' },
+            : { ...r, status: 'failed' as const, error: tr().exports.interrupted },
         );
         return { ...current, records };
       },

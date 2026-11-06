@@ -129,7 +129,7 @@ class Renderer {
     const opts: WebGLContextAttributes = { preserveDrawingBuffer: true, alpha: false, antialias: false, premultipliedAlpha: false };
     const gl2 = this.canvas.getContext('webgl2', opts) as WebGL2RenderingContext | null;
     const gl = (gl2 ?? this.canvas.getContext('webgl', opts)) as WebGLRenderingContext | null;
-    if (!gl) throw new Error('WebGL indisponível neste dispositivo.');
+    if (!gl) throw new Error('@noWebgl');
     this.gl = gl;
     this.isGL2 = !!gl2;
     const buf = gl.createBuffer();
@@ -392,9 +392,10 @@ async function openClip(key: string, size: number): Promise<OpenClip> {
     }),
   });
   const video = await input.getPrimaryVideoTrack();
-  if (!video) throw new Error('O arquivo não tem trilha de vídeo.');
+  if (!video) throw new Error('@noVideoTrack');
   if (!(await video.canDecode())) {
-    throw new Error(`Este aparelho não decodifica ${video.codec ?? 'este codec'} pela WebView. Tente um clipe H.264/HEVC.`);
+    // Coded messages ('@code|arg|arg') are localized by the app (src/engine/errors.ts).
+    throw new Error(`@cannotDecode|${video.codec ?? ''}`);
   }
   const audio = await input.getPrimaryAudioTrack();
   const rot = video.rotation;
@@ -422,7 +423,7 @@ async function pickCodec(out: RenderOutput, width: number, height: number, fps: 
       if (await canEncodeVideo(codec, { width, height, bitrate, frameRate: fps })) return { codec, bitrate };
     } catch {}
   }
-  throw new Error(`Nenhum codec de vídeo disponível para ${out.container.toUpperCase()} em ${width}×${height}.`);
+  throw new Error(`@noEncoder|${out.container.toUpperCase()}|${width}×${height}`);
 }
 
 async function renderOutput(job: RenderJob, out: RenderOutput) {
@@ -659,5 +660,5 @@ window.__lutraEngine = {
 };
 
 window.addEventListener('error', (e) => log('erro: ' + e.message));
-window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => log('rejeição: ' + String(e.reason?.message ?? e.reason)));
+window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => log('rejection: ' + String(e.reason?.message ?? e.reason)));
 send({ type: 'ready' });

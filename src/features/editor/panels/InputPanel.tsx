@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { View } from 'react-native';
 
 import { getProfile } from '../../../color/profiles';
+import { useT } from '../../../i18n';
+import { profileText } from '../../../i18n/content';
 import { haptic } from '../../../lib/haptics';
 import { effectiveGrade, useProjects, type Clip, type Project } from '../../../store/projects';
 import { space } from '../../../theme/tokens';
@@ -10,7 +12,9 @@ import { Row, Section, SwitchRow } from '../../../ui/List';
 import { InlineNotice } from '../../../ui/States';
 
 export function InputPanel({ project, clip }: { project: Project; clip: Clip }) {
-  const profile = getProfile(clip.input);
+  const t = useT();
+  const l = t.inputPanel;
+  const profile = { kind: getProfile(clip.input).kind, ...profileText(clip.input, t) };
   const others = project.clips.filter((c) => c.id !== clip.id);
   const mixed = new Set(project.clips.map((c) => c.input)).size > 1;
   const d = clip.detection;
@@ -18,8 +22,8 @@ export function InputPanel({ project, clip }: { project: Project; clip: Clip }) 
   return (
     <View style={{ gap: space.xl, paddingHorizontal: space.l }}>
       <Section
-        title="Perfil de câmera deste clipe"
-        footer="A conversão de log para Rec.709 é feita pela matemática oficial de cada fabricante, antes do look. Não precisa de LUT de conversão."
+        title={l.section}
+        footer={l.footer}
       >
         <Row
           icon="input"
@@ -33,13 +37,13 @@ export function InputPanel({ project, clip }: { project: Project; clip: Clip }) 
       {d ? (
         <InlineNotice
           tone={d.isLog && profile.kind === 'display' ? 'warning' : 'info'}
-          title={d.isLog ? `Parece footage em log (${Math.round(d.confidence * 100)}%)` : 'Parece vídeo já corrigido'}
+          title={d.isLog ? l.looksLog(Math.round(d.confidence * 100)) : l.looksCorrected}
           message={
             d.isLog && profile.kind === 'display'
-              ? 'Este clipe tem contraste e saturação típicos de log. Escolha o perfil da câmera para converter corretamente.'
+              ? l.logButDisplay
               : d.isLog
-                ? 'Detectado pelo contraste e saturação do quadro. Confira se o perfil bate com a câmera.'
-                : 'Contraste normal detectado. Mantenha Rec.709 a menos que tenha gravado em log.'
+                ? l.logDetected
+                : l.normalDetected
           }
         />
       ) : null}
@@ -47,7 +51,7 @@ export function InputPanel({ project, clip }: { project: Project; clip: Clip }) 
       {others.length ? (
         <View style={{ gap: space.m }}>
           <Button
-            label={`Usar ${profile.name} em todos os ${project.clips.length} clipes`}
+            label={l.useForAll(profile.name, project.clips.length)}
             variant="secondary"
             icon="copy"
             disabled={!mixed}
@@ -56,10 +60,10 @@ export function InputPanel({ project, clip }: { project: Project; clip: Clip }) 
               haptic.success();
             }}
           />
-          <Section footer={project.linked ? 'Look e ajustes valem para todos os clipes. O perfil de câmera continua individual, para misturar câmeras.' : 'Cada clipe tem look e ajustes próprios.'}>
+          <Section footer={project.linked ? l.linkedFooter : l.unlinkedFooter}>
             <SwitchRow
               icon="link"
-              title="Mesmo grade em todo o lote"
+              title={l.linked}
               value={project.linked}
               onValueChange={(v) => {
                 useProjects.getState().setLinked(project.id, v, clip.id);
@@ -69,7 +73,7 @@ export function InputPanel({ project, clip }: { project: Project; clip: Clip }) 
           </Section>
           {!project.linked ? (
             <Button
-              label="Copiar grade deste clipe para todos"
+              label={l.copyToAll}
               variant="secondary"
               icon="paste"
               onPress={() => {

@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { DEFAULT_GRADE, type Adjustments, type Effects, type Grade } from '../color/grade';
 import type { ProfileId } from '../color/profiles';
 import type { AspectId } from '../engine/protocol';
+import { intlTag, tr } from '../i18n';
 import { uid } from '../lib/id';
 
 export type Clip = {
@@ -93,7 +94,7 @@ export const useProjects = create<ProjectStore>()(
           const d = new Date(now);
           const project: Project = {
             id: uid(),
-            name: name ?? `Lote ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+            name: name ?? tr().project.defaultName(d.toLocaleDateString(intlTag(), { day: '2-digit', month: 'short' }), d.toLocaleTimeString(intlTag(), { hour: '2-digit', minute: '2-digit' })),
             createdAt: now,
             updatedAt: now,
             clips,
@@ -109,7 +110,7 @@ export const useProjects = create<ProjectStore>()(
           const p = find(id);
           if (!p) return null;
           const now = Date.now();
-          const copy: Project = { ...p, id: uid(), name: `${p.name} (cópia)`, createdAt: now, updatedAt: now, clips: p.clips.map((c) => ({ ...c, id: uid() })) };
+          const copy: Project = { ...p, id: uid(), name: tr().project.copyName(p.name), createdAt: now, updatedAt: now, clips: p.clips.map((c) => ({ ...c, id: uid() })) };
           set((s) => ({ projects: [copy, ...s.projects] }));
           return copy;
         },

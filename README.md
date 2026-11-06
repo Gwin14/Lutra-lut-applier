@@ -1,6 +1,6 @@
 # Lutra — LUTs e grading para vídeos log, em lote
 
-App **React Native + Expo (SDK 58)** para celulares e tablets que aplica LUTs e ajustes de cor em vários vídeos de uma vez, com foco em **footage log**. Exporta cada clipe separado ou tudo junto em um vídeo só. Funciona no **Expo Go**: nenhuma funcionalidade depende de módulo nativo fora do Expo Go, e os widgets (que precisam de extensão nativa) são ignorados com segurança lá.
+App **React Native + Expo (SDK 58)** para celulares e tablets que aplica LUTs e ajustes de cor em vários vídeos de uma vez, com foco em **footage log**. Exporta cada clipe separado ou tudo junto em um vídeo só. A exportação usa um **motor nativo** (AVFoundation + Metal no iOS, MediaCodec + OpenGL ES no Android). O app ainda abre no **Expo Go**, com um motor WebView mais limitado no lugar do nativo, e os widgets são ignorados lá.
 
 ## O que ele faz
 
@@ -43,11 +43,11 @@ npm install
 npx expo start
 ```
 
-Escaneie o QR code com o Expo Go (SDK 58). Para exportar vídeos, o aparelho precisa de **iOS 16.4+** ou **Android System WebView 94+** (WebCodecs).
+Escaneie o QR code com o Expo Go (SDK 58). No Expo Go o motor nativo não existe, então a exportação cai no motor WebView, que precisa de **iOS 16.4+** ou **Android System WebView 94+** (WebCodecs). Para o motor nativo, use um build de desenvolvimento (abaixo).
 
-## Widgets (build de desenvolvimento)
+## Build de desenvolvimento (motor nativo e widgets)
 
-Widgets e Live Activity precisam de uma extensão nativa, então não rodam no Expo Go (lá o app simplesmente os ignora).
+O motor de exportação nativo (`modules/lutra-engine`), os widgets e a Live Activity precisam de código nativo, então não rodam no Expo Go.
 
 ```bash
 npx expo run:ios               # local, com Xcode
@@ -68,9 +68,13 @@ src/color/        ciência de cor em TS puro (roda no app, no motor e nos testes
   looks.ts          looks embutidos
 src/engine/
   shader.ts         UM programa de cor para dois backends: SkSL (prévia) e GLSL (exportação)
-  EngineProvider    WebView invisível que hospeda o motor; leituras/escritas de arquivo sob demanda
+  shader.ts         ...e também MSL (motor iOS) e GLSL OES (motor Android), gerados do mesmo corpo
+  EngineProvider    escolhe o motor: módulo nativo quando existe, senão a WebView (Expo Go)
   jobs.ts           lote + preset → job (bake do LUT por grade)
-engine/web/main.ts  motor de exportação: WebCodecs + WebGL + mediabunny (vira src/engine/engineHtml.generated.ts)
+modules/lutra-engine/  motor nativo (Expo Module local)
+  ios/              AVAssetReader (Y'CbCr 10-bit) → kernel Metal → AVAssetWriter (H.264/HEVC + AAC)
+  android/          MediaExtractor → MediaCodec → SurfaceTexture/GLES → encoder → MediaMuxer
+engine/web/main.ts  motor fallback do Expo Go: WebCodecs + WebGL + mediabunny (vira src/engine/engineHtml.generated.ts)
 src/preview/      prévia ao vivo com React Native Skia (useVideo + runtime effect)
 src/widgets/      widgets/Live Activity (carregados só se o módulo nativo existir)
 src/app/          rotas (Expo Router): abas nativas, editor, exportar, folhas
@@ -78,7 +82,9 @@ src/app/          rotas (Expo Router): abas nativas, editor, exportar, folhas
 
 O grade inteiro (conversão log, look, ajustes) é "assado" em um LUT 3D pelo mesmo código TS; a GPU só amostra o LUT e aplica efeitos espaciais. Por isso a prévia, o vídeo exportado e o `.cube` exportado nunca divergem.
 
-**Por que WebView para exportar?** O Expo Go não inclui encoder de vídeo nativo programável. O motor roda dentro de uma WebView (presente no Expo Go) usando **WebCodecs**, que acessa o hardware de vídeo do aparelho. Os bytes dos clipes são entregues sob demanda pelo `expo-file-system`, e a saída é escrita em posições no arquivo final. Os quadros 10-bit/HDR são lidos como planos Y'CbCr crus, para o navegador não aplicar gerenciamento de cor por conta própria.
+**Motores de exportação.** Os dois motores falam o mesmo protocolo (`src/engine/protocol.ts`) e recebem o shader de `src/engine/shader.ts` em tempo de execução, então a cor não diverge entre prévia (Skia), iOS (Metal), Android (GLES) e WebView (WebGL).
+- **Nativo** (builds de desenvolvimento e produção): lê e grava os arquivos direto no disco, sem passar bytes pela ponte JS. No iOS os quadros chegam como Y'CbCr 10-bit (x420) via IOSurface, sem cópia e sem gerenciamento de cor antes do grade. No Android o decoder renderiza numa textura OES e o quadro graduado vai direto para a surface do encoder.
+- **WebView** (só Expo Go): WebCodecs dentro de uma WebView invisível, com os bytes entregues sob demanda pelo `expo-file-system` em base64. Fica como fallback porque o Expo Go não tem encoder nativo programável.
 
 ## Scripts
 
@@ -93,7 +99,9 @@ O grade inteiro (conversão log, look, ajustes) é "assado" em um LUT 3D pelo me
 ## Limitações conhecidas
 
 - O app foi verificado com typecheck, bundles iOS/Android, testes da cor, o motor rodando no Chromium e capturas da versão web. **Ainda não foi rodado em iPhone/Android físico nem em simulador**, então a primeira rodada no Expo Go é o teste de verdade, principalmente a prévia com `useVideo` do Skia, o desempenho e os widgets.
-- A exportação pausa se o app for para segundo plano: a WebView é suspensa pelo sistema. A tela fica acesa durante a renderização.
+- No iOS a exportação nativa pausa enquanto o app está em segundo plano (o iOS não permite GPU em background) e continua ao voltar. No Android ela segue enquanto o processo estiver vivo. No motor WebView ela para em segundo plano. A tela fica acesa durante a renderização.
+- O motor nativo do Android ainda não foi rodado em aparelho/emulador (só compilado). O do iOS foi testado ponta a ponta no Mac (Mac Catalyst) com clipes H.264, HEVC 10-bit e rotacionados.
+- No Android, MOV é gravado como MP4 (o `MediaMuxer` não tem MOV), e o áudio de clipes com taxas de amostragem diferentes num merge é descartado. A saída nativa é SDR 8-bit BT.709, como a da WebView.
 - Disponibilidade de HEVC/AV1 e de AAC na codificação varia por aparelho. O app consulta o hardware e mostra só o que funciona.
 - WebM não é aceito pela Galeria do iPhone; ele fica em Exportações para compartilhar.
 - D-Log M, Samsung Log e outros sem fórmula pública: use Rec.709 como entrada e importe o LUT oficial do fabricante.

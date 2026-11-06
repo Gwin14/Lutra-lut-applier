@@ -8,6 +8,7 @@ import type { Effects } from '../../color/grade';
 import type { ScopeMode } from '../../color/scopes';
 import { GradedVideo, type VideoInfo } from '../../preview/GradedVideo';
 import type { BakedLut } from '../../preview/lutImage';
+import { useT } from '../../i18n';
 import { grade as g, radius, space } from '../../theme/tokens';
 import { Icon } from '../../ui/Icon';
 import { Text } from '../../ui/Text';
@@ -37,6 +38,7 @@ type Props = {
 };
 
 export function Viewer(p: Props) {
+  const t = useT();
   const [box, setBox] = useState({ w: 0, h: 0 });
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -81,7 +83,7 @@ export function Viewer(p: Props) {
     <View onLayout={onLayout} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: g.viewer }}>
       {w > 0 && h > 0 ? (
         <GestureDetector gesture={gesture}>
-          <View style={{ width: w, height: h }} accessible accessibilityRole="image" accessibilityLabel="Prévia do vídeo com o look aplicado" accessibilityHint="Toque para reproduzir ou pausar">
+          <View style={{ width: w, height: h }} accessible accessibilityRole="image" accessibilityLabel={t.editor.previewA11y} accessibilityHint={t.editor.previewHint}>
             <GradedVideo
               uri={p.uri}
               width={w}
@@ -106,10 +108,10 @@ export function Viewer(p: Props) {
                   <Icon name="compare" size={16} color="#000000" weight="semibold" />
                 </Animated.View>
                 <View pointerEvents="none" style={{ position: 'absolute', top: space.s, left: space.s, flexDirection: 'row', gap: space.xs }}>
-                  <Pill label="Original" />
+                  <Pill label={t.common.original} />
                 </View>
                 <View pointerEvents="none" style={{ position: 'absolute', top: space.s, right: space.s }}>
-                  <Pill label="Com look" />
+                  <Pill label={t.editor.withLook} />
                 </View>
               </>
             ) : null}

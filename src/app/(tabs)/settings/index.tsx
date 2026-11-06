@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 
-import { getProfile } from '../../../color/profiles';
+import { LANG_NAMES, useT } from '../../../i18n';
+import { profileText } from '../../../i18n/content';
 import { dirs, directorySize } from '../../../lib/files';
 import { formatBytes } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
@@ -20,48 +21,54 @@ import { widgetsAvailable } from '../../../widgets';
 
 export default function SettingsScreen() {
   const s = useSettings();
+  const t = useT();
   const caps = useExports((x) => x.caps);
   const records = useExports((x) => x.records);
   const [storageTick, setStorageTick] = useState(0);
   const storage = useMemo(() => directorySize(dirs.exports), [storageTick, records.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  const nativeEngine = caps?.backend === 'native';
 
   const codecLine = caps
     ? (['avc', 'hevc', 'av1', 'vp9'] as const)
         .filter((k) => caps.video[k].hd)
         .map((k) => `${{ avc: 'H.264', hevc: 'HEVC', av1: 'AV1', vp9: 'VP9' }[k]}${caps.video[k].uhd ? ' 4K' : ''}`)
-        .join(', ') || 'nenhum'
-    : 'verificando…';
+        .join(', ') || t.settings.none
+    : t.settings.checking;
 
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: space.l, gap: space.xxl, paddingBottom: space.xxxl * 2 }}>
-      <Section title="Aparência">
-        <Segmented<Settings['theme']> values={['system', 'light', 'dark']} labels={['Sistema', 'Claro', 'Escuro']} value={s.theme} onChange={(v) => s.set('theme', v)} />
+      <Section title={t.settings.language}>
+        <Segmented<Settings['language']> values={['system', 'pt', 'en']} labels={[t.settings.languageSystem, LANG_NAMES.pt, LANG_NAMES.en]} value={s.language} onChange={(v) => s.set('language', v)} />
       </Section>
 
-      <Section title="Prévia" footer="Precisão do LUT na prévia ao vivo. A exportação sempre usa a precisão escolhida na tela de exportar.">
-        <Segmented<Settings['previewQuality']> values={['fast', 'balanced', 'max']} labels={['Rápida 17³', 'Equilibrada 25³', 'Máxima 33³']} value={s.previewQuality} onChange={(v) => s.set('previewQuality', v)} />
-        <SwitchRow title="Vibração" subtitle="Toques sutis em sliders, seleções e fim de exportação" value={s.haptics} onValueChange={(v) => s.set('haptics', v)} />
+      <Section title={t.settings.appearance}>
+        <Segmented<Settings['theme']> values={['system', 'light', 'dark']} labels={[t.settings.themeSystem, t.settings.themeLight, t.settings.themeDark]} value={s.theme} onChange={(v) => s.set('theme', v)} />
       </Section>
 
-      <Section title="Log" footer="A detecção analisa contraste e saturação do primeiro quadro e o nome do arquivo (ex.: C0001 → Sony, DJI_ → DJI).">
-        <SwitchRow title="Detectar footage em log" value={s.autoDetectLog} onValueChange={(v) => s.set('autoDetectLog', v)} />
+      <Section title={t.settings.preview} footer={t.settings.previewFooter}>
+        <Segmented<Settings['previewQuality']> values={['fast', 'balanced', 'max']} labels={[t.settings.previewFast, t.settings.previewBalanced, t.settings.previewMax]} value={s.previewQuality} onChange={(v) => s.set('previewQuality', v)} />
+        <SwitchRow title={t.settings.haptics} subtitle={t.settings.hapticsHint} value={s.haptics} onValueChange={(v) => s.set('haptics', v)} />
+      </Section>
+
+      <Section title={t.settings.log} footer={t.settings.logFooter}>
+        <SwitchRow title={t.settings.detectLog} value={s.autoDetectLog} onValueChange={(v) => s.set('autoDetectLog', v)} />
         <Row
-          title="Perfil log padrão"
-          value={getProfile(s.preferredLog).name}
+          title={t.settings.defaultLog}
+          value={profileText(s.preferredLog, t).name}
           chevron
           onPress={() => router.push({ pathname: '/profile/[id]', params: { id: 'default' } })}
         />
       </Section>
 
-      <Section title="Exportação">
-        <SwitchRow title="Salvar na Galeria" subtitle={`Álbum "${s.albumName}"`} value={s.saveToPhotos} onValueChange={(v) => s.set('saveToPhotos', v)} />
-        <Row title="Arquivos no app" value={formatBytes(storage)} />
+      <Section title={t.settings.export}>
+        <SwitchRow title={t.settings.saveToPhotos} subtitle={t.settings.album(s.albumName)} value={s.saveToPhotos} onValueChange={(v) => s.set('saveToPhotos', v)} />
+        <Row title={t.settings.filesInApp} value={formatBytes(storage)} />
         <Row
-          title="Apagar exportações do app"
+          title={t.settings.clearExports}
           destructive
           onPress={() =>
-            confirmDestructive('Apagar exportações?', 'Os vídeos salvos na Galeria continuam lá. Os demais serão apagados.', 'Apagar', () => {
+            confirmDestructive(t.settings.clearTitle, t.settings.clearMessage, t.settings.clearConfirm, () => {
               try {
                 const d = dirs.exports();
                 d.delete();
@@ -76,42 +83,42 @@ export default function SettingsScreen() {
       </Section>
 
       <Section
-        title="Widgets"
+        title={t.settings.widgets}
         footer={
           widgetsAvailable
-            ? 'Toque e segure a tela bloqueada, toque em Personalizar e adicione "Lutra": progresso da exportação, look do dia e atalho para novo lote. Durante exportações aparece uma Live Activity.'
+            ? t.settings.widgetsOn
             : isExpoGo
-              ? 'Widgets de tela bloqueada e Live Activity precisam de um build de desenvolvimento (npx expo run:ios). No Expo Go o resto do app funciona normalmente.'
+              ? t.settings.widgetsExpoGo
               : process.env.EXPO_OS === 'android'
-                ? 'Os widgets de tela bloqueada são do iOS. No Android, o progresso aparece aqui e na aba Exportações.'
-                : 'Widgets indisponíveis neste build.'
+                ? t.settings.widgetsAndroid
+                : t.settings.widgetsOff
         }
       >
-        <Row icon="widgets" title="Tela bloqueada e Live Activity" value={widgetsAvailable ? 'Ativos' : 'Indisponíveis'} />
+        <Row icon="widgets" title={t.settings.widgetsRow} value={widgetsAvailable ? t.settings.active : t.settings.unavailablePlural} />
       </Section>
 
-      <Section title="Motor de renderização" footer="Decodificação, cor e codificação rodam no hardware de vídeo do aparelho via WebCodecs, sem módulos nativos extras — compatível com o Expo Go.">
-        <Row icon="engine" title="WebCodecs" value={caps ? (caps.webcodecs ? 'Disponível' : 'Indisponível') : '…'} />
-        <Row title="Codecs de vídeo" subtitle={codecLine} />
-        <Row title="Áudio" value={caps ? [caps.audio.aac && 'AAC', caps.audio.opus && 'Opus'].filter(Boolean).join(', ') || 'cópia direta' : '…'} />
-        <Row title="WebGL" value={caps ? (caps.webgl ? `WebGL ${caps.webgl}` : 'Indisponível') : '…'} />
+      <Section title={t.settings.engine} footer={nativeEngine || !caps ? t.settings.engineFooter : t.settings.engineFooterWebView}>
+        <Row icon="engine" title={t.settings.engineBackend} value={caps ? (nativeEngine ? t.settings.engineNative : t.settings.engineWebView) : '…'} />
+        {nativeEngine ? <Row title={t.settings.gpu} value={caps?.gpu ?? '…'} /> : null}
+        {caps && !nativeEngine ? <Row title="WebCodecs" value={caps.webcodecs ? t.settings.available : t.settings.unavailable} /> : null}
+        <Row title={t.settings.videoCodecs} subtitle={codecLine} />
+        <Row title={t.settings.audio} value={caps ? [caps.audio.aac && 'AAC', caps.audio.opus && 'Opus'].filter(Boolean).join(', ') || t.settings.directCopy : '…'} />
+        {caps && !nativeEngine ? <Row title="WebGL" value={caps.webgl ? `WebGL ${caps.webgl}` : t.settings.unavailable} /> : null}
       </Section>
 
-      <Section title="Sobre">
-        <Row title="Versão" value={Constants.expoConfig?.version ?? '1.0.0'} />
+      <Section title={t.settings.about}>
+        <Row title={t.settings.version} value={Constants.expoConfig?.version ?? '1.0.0'} />
+        <Row title={t.settings.replayIntro} chevron onPress={() => router.push('/onboarding')} />
         <Row
-          title="Licenças de terceiros"
+          title={t.settings.licenses}
           chevron
           onPress={() =>
-            Alert.alert(
-              'Licenças',
-              'mediabunny (MPL-2.0) — mux/demux de vídeo no motor de exportação.\nReact Native Skia (MIT), Expo (MIT), Zustand (MIT).\nCurvas log e gamuts conforme documentação pública de Sony, Panasonic, Canon, ARRI, Fujifilm, Nikon, DJI, Apple, Blackmagic e GoPro.',
-            )
+            Alert.alert(t.settings.licensesTitle, t.settings.licensesBody)
           }
         />
       </Section>
       <Text variant="footnote" tone="tertiary" center>
-        Lutra · feito para quem grava em log
+        {t.settings.tagline}
       </Text>
     </ScrollView>
   );

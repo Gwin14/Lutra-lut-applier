@@ -1,7 +1,10 @@
 /**
- * Message protocol between the React Native host and the render engine that
- * runs inside a WebView (WebCodecs + WebGL + mediabunny).
- * Shared by both sides; keep it dependency-free.
+ * Message protocol between the React Native host and the render engine.
+ * Two engines speak it: the native module (modules/lutra-engine: AVFoundation +
+ * Metal on iOS, MediaCodec + GLES on Android) and the WebView fallback for
+ * Expo Go (WebCodecs + WebGL + mediabunny). The native engine reads and writes
+ * files itself, so it never sends `read`/`write`.
+ * Shared by all sides; keep it dependency-free.
  */
 import type { Effects } from '../color/grade';
 
@@ -50,6 +53,9 @@ export type RenderJob = {
 };
 
 export type EngineCaps = {
+  /** Absent on the WebView engine. */
+  backend?: 'native' | 'webview';
+  gpu?: string;
   webcodecs: boolean;
   webgl: 1 | 2 | 0;
   video: Record<VideoCodecId, { hd: boolean; uhd: boolean }>;

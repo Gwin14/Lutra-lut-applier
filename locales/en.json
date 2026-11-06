@@ -1,0 +1,16 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Lutra",
+    "NSPhotoLibraryUsageDescription": "Lutra accesses your videos to apply looks and LUTs, and your library to save exported videos.",
+    "NSPhotoLibraryAddUsageDescription": "Lutra saves exported videos and frames to your library.",
+    "Localizable.strings": {
+      "Export": "Export",
+      "Export progress and a shortcut to a new batch.": "Export progress and a shortcut to a new batch.",
+      "Look of the day": "Look of the day",
+      "A different look every day, ready to apply.": "A different look every day, ready to apply."
+    }
+  },
+  "android": {
+    "app_name": "Lutra"
+  }
+}

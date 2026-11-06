@@ -1,4 +1,6 @@
-const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
+import { formatNumber, intlTag, tr } from '../i18n';
+
+const nf1 = { format: (v: number) => formatNumber(v, 1) };
 
 export function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—';
@@ -38,30 +40,27 @@ export function formatResolution(w: number, h: number) {
 }
 
 export function formatFps(fps: number) {
-  return `${nf1.format(fps)} fps`;
+  return tr().format.fps(nf1.format(fps));
 }
 
 export function formatRelative(ts: number) {
+  const t = tr().format;
   const diff = Date.now() - ts;
   const min = Math.round(diff / 60000);
-  if (min < 1) return 'agora';
-  if (min < 60) return `há ${min} min`;
+  if (min < 1) return t.now;
+  if (min < 60) return t.minutesAgo(min);
   const h = Math.round(min / 60);
-  if (h < 24) return `há ${h} h`;
+  if (h < 24) return t.hoursAgo(h);
   const d = Math.round(h / 24);
-  if (d < 7) return d === 1 ? 'ontem' : `há ${d} dias`;
-  return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  if (d < 7) return d === 1 ? t.yesterday : t.daysAgo(d);
+  return new Date(ts).toLocaleDateString(intlTag(), { day: '2-digit', month: 'short' });
 }
 
 export function formatEta(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return 'calculando…';
-  if (seconds < 60) return `${Math.ceil(seconds)} s restantes`;
-  const m = Math.ceil(seconds / 60);
-  return `${m} min restantes`;
-}
-
-export function plural(n: number, one: string, many: string) {
-  return `${n} ${n === 1 ? one : many}`;
+  const t = tr().format;
+  if (!Number.isFinite(seconds) || seconds <= 0) return t.etaCalculating;
+  if (seconds < 60) return t.etaSeconds(Math.ceil(seconds));
+  return t.etaMinutes(Math.ceil(seconds / 60));
 }
 
 export function sanitizeFilename(name: string) {

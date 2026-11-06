@@ -6,7 +6,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, typ
 import { StyleSheet, View } from 'react-native';
 import { WebView as WebViewBase, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 
+import LutraEngine from '../../modules/lutra-engine';
 import { base64ToBytes } from '../color/lut';
+import { tr } from '../i18n';
 import { haptic } from '../lib/haptics';
 import { formatEta } from '../lib/format';
 import { thumbnailAt } from '../lib/media';
@@ -14,8 +16,13 @@ import { useExports } from '../store/exports';
 import { useSettings } from '../store/settings';
 import { endRenderActivity, startRenderActivity, updateRenderActivity, updateRenderWidget } from '../widgets';
 import { ENGINE_HTML } from './engineHtml.generated';
+import { localizeEngineError } from './errors';
 import type { PreparedJob } from './jobs';
 import type { EngineCommand, EngineEvent } from './protocol';
+import { NATIVE_SHADERS } from './shader';
+
+/** Native engine (development/production builds); null in Expo Go and on web, which fall back to the WebView. */
+const NATIVE = process.env.EXPO_OS === 'web' ? null : LutraEngine;
 
 type EngineApi = {
   enqueue: (prepared: PreparedJob, title: string, projectId: string) => void;
@@ -44,16 +51,42 @@ type Running = {
 };
 
 /**
- * Hosts the render engine in an invisible WebView and serves its I/O:
- * byte-range reads of the source clips and positioned writes of the outputs.
- * Jobs run one at a time; the queue survives navigation (not app restarts).
+ * Hosts the render engine: the native module when it is linked, otherwise an
+ * invisible WebView (Expo Go) whose I/O is served from here (byte-range reads
+ * of the source clips and positioned writes of the outputs). Both emit the same
+ * EngineEvents. Jobs run one at a time; the queue survives navigation (not app restarts).
  */
 export function EngineProvider({ children }: { children: ReactNode }) {
   const web = useRef<WebView>(null);
   const queue = useRef<{ prepared: PreparedJob; title: string; projectId: string }[]>([]);
   const running = useRef<Running | null>(null);
+  const onEventRef = useRef<(evt: EngineEvent) => void>(() => {});
 
   const send = useCallback((cmd: EngineCommand) => {
+    if (NATIVE) {
+      const native = NATIVE;
+      if (cmd.type === 'probe') {
+        native
+          .probe()
+          .then((json) => onEventRef.current({ type: 'caps', caps: JSON.parse(json) }))
+          .catch((e) => __DEV__ && console.warn('[engine] probe failed', e));
+      } else if (cmd.type === 'cancel') {
+        native.cancel();
+      } else if (cmd.type === 'render') {
+        const r = running.current;
+        const destinations: Record<string, string> = {};
+        r?.prepared.job.outputs.forEach((o, i) => {
+          destinations[String(o.index)] = r.prepared.records[i].uri;
+        });
+        try {
+          native.render(JSON.stringify(cmd.job), JSON.stringify(r?.prepared.sources ?? {}), JSON.stringify(destinations), JSON.stringify(NATIVE_SHADERS));
+        } catch (e) {
+          onEventRef.current({ type: 'outputError', outIndex: -1, message: String((e as Error)?.message ?? e) });
+          onEventRef.current({ type: 'jobDone', canceled: false });
+        }
+      }
+      return;
+    }
     web.current?.injectJavaScript(`window.__lutraEngine && window.__lutraEngine.receive(${JSON.stringify(JSON.stringify(cmd))}); true;`);
   }, []);
 
@@ -75,7 +108,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       startedAt: Date.now(),
     });
     activateKeepAwakeAsync('lutra-render').catch(() => {});
-    startRenderActivity({ title, progress: 0, finished: 0, total: prepared.records.length, eta: 'iniciando…' });
+    startRenderActivity({ title, progress: 0, finished: 0, total: prepared.records.length, eta: tr().format.starting });
     send({ type: 'render', job: prepared.job });
   }, [send]);
 
@@ -97,7 +130,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     const progress = total ? done / total : 0;
     const finished = recs.filter((x) => x.status === 'done').length;
     const elapsed = (now - r.startedAt) / 1000;
-    const eta = progress > 0.02 ? formatEta((elapsed / progress) * (1 - progress)) : 'calculando…';
+    const eta = progress > 0.02 ? formatEta((elapsed / progress) * (1 - progress)) : tr().format.etaCalculating;
     updateRenderWidget({ state: 'rendering', progress, title: r.title, detail: eta, finished, total: recs.length, exportedToday: exportedToday() });
     updateRenderActivity({ title: r.title, progress, finished, total: recs.length, eta });
   }, []);
@@ -115,7 +148,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       for (const rec of r.prepared.records) {
         const cur = s.records.find((x) => x.id === rec.id);
         if (cur && (cur.status === 'queued' || cur.status === 'rendering' || cur.status === 'preparing')) {
-          s.patchRecord(rec.id, { status: canceled ? 'canceled' : 'failed', error: canceled ? null : cur.error ?? 'Falha desconhecida.' });
+          s.patchRecord(rec.id, { status: canceled ? 'canceled' : 'failed', error: canceled ? null : cur.error ?? tr().exports.unknownFailure });
           if (canceled) deleteQuietly(rec.uri);
         }
       }
@@ -128,12 +161,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         state: ok > 0 ? 'done' : 'failed',
         progress: 1,
         title: r.title,
-        detail: ok > 0 ? `${ok} de ${recs.length} exportados` : 'Exportação falhou',
+        detail: ok > 0 ? tr().exports.nOfMExported(ok, recs.length) : tr().exports.exportFailed,
         finished: ok,
         total: recs.length,
         exportedToday: exportedToday(),
       });
-      endRenderActivity({ title: r.title, progress: 1, finished: ok, total: recs.length, eta: canceled ? 'cancelado' : 'concluído' });
+      endRenderActivity({ title: r.title, progress: 1, finished: ok, total: recs.length, eta: canceled ? tr().exports.canceledShort : tr().exports.doneShort });
       deactivateKeepAwake('lutra-render').catch(() => {});
       running.current = null;
       s.setActive(null);
@@ -161,7 +194,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           const r = running.current;
           const uri = r?.prepared.sources[evt.clipKey];
           if (!uri) {
-            send({ type: 'readResult', id: evt.id, error: 'arquivo desconhecido' });
+            send({ type: 'readResult', id: evt.id, error: 'unknown file' });
             break;
           }
           try {
@@ -180,7 +213,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           const r = running.current;
           const rec = recordFor(evt.outIndex);
           if (!r || !rec) {
-            send({ type: 'writeAck', id: evt.id, error: 'sem destino' });
+            send({ type: 'writeAck', id: evt.id, error: 'no destination' });
             break;
           }
           try {
@@ -250,12 +283,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         case 'outputError': {
           const r = running.current;
           if (evt.outIndex < 0 && r) {
-            for (const rr of r.prepared.records) s.patchRecord(rr.id, { status: 'failed', error: evt.message });
+            for (const rr of r.prepared.records) s.patchRecord(rr.id, { status: 'failed', error: localizeEngineError(evt.message) });
             break;
           }
           const rec = recordFor(evt.outIndex);
           if (!rec) break;
-          s.patchRecord(rec.id, { status: 'failed', error: evt.message });
+          s.patchRecord(rec.id, { status: 'failed', error: localizeEngineError(evt.message) });
           const h = r?.handles.get(evt.outIndex);
           try {
             h?.close();
@@ -271,6 +304,21 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     },
     [finishJob, pump, send, syncWidgets],
   );
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
+  useEffect(() => {
+    if (!NATIVE) return;
+    const sub = NATIVE.addListener('onEvent', ({ json }) => {
+      try {
+        onEventRef.current(JSON.parse(json));
+      } catch {}
+    });
+    onEventRef.current({ type: 'ready' });
+    return () => sub.remove();
+  }, []);
 
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
@@ -310,7 +358,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   return (
     <EngineContext.Provider value={api}>
       {children}
-      {process.env.EXPO_OS === 'web' ? null : (
+      {process.env.EXPO_OS === 'web' || NATIVE ? null : (
       <View pointerEvents="none" style={styles.host} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <WebView
           ref={web}
@@ -326,7 +374,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             useExports.getState().setEngineReady(false);
             if (running.current) {
               for (const rr of running.current.prepared.records) {
-                useExports.getState().patchRecord(rr.id, { status: 'failed', error: 'O motor de renderização foi encerrado pelo sistema (memória). Tente uma resolução menor.' });
+                useExports.getState().patchRecord(rr.id, { status: 'failed', error: tr().exports.engineKilled });
               }
               finishJob(false);
             }

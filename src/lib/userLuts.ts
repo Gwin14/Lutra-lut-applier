@@ -5,6 +5,7 @@ import { parseCube, CubeParseError } from '../color/cube';
 import type { LookFn } from '../color/grade';
 import { lookSwatches } from '../color/looks';
 import { lutAsLook, resampleLut, type Lut3D } from '../color/lut';
+import { tr } from '../i18n';
 import { useLibrary, type UserLut } from '../store/library';
 import { dirs } from './files';
 
@@ -46,7 +47,7 @@ export async function importCubeFiles(): Promise<ImportResult> {
   for (const asset of res.assets) {
     const name = asset.name.replace(/\.(cube|CUBE)$/, '');
     if (!/\.cube$/i.test(asset.name)) {
-      errors.push(`${asset.name}: apenas arquivos .cube são suportados.`);
+      errors.push(tr().luts.onlyCube(asset.name));
       continue;
     }
     try {
@@ -66,10 +67,15 @@ export async function importCubeFiles(): Promise<ImportResult> {
       cache.set(entry.id, parsed.lut.size > 65 ? resampleLut(parsed.lut, 65) : parsed.lut);
       imported.push(entry);
     } catch (e) {
-      errors.push(`${asset.name}: ${e instanceof CubeParseError ? e.message : 'não foi possível ler o arquivo.'}`);
+      errors.push(e instanceof CubeParseError ? tr().luts.withReason(asset.name, cubeErrorText(e)) : tr().luts.unreadable(asset.name));
     }
   }
   return { imported, errors };
+}
+
+function cubeErrorText(e: CubeParseError) {
+  const m = tr().luts.cube;
+  return e.code === 'tooFewPoints' ? m.tooFewPoints(e.size ?? 0) : m[e.code];
 }
 
 export function deleteUserLut(entry: UserLut) {

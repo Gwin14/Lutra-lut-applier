@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { ScrollView, View } from 'react-native';
 
-import { getProfile } from '../../color/profiles';
+import { useT } from '../../i18n';
+import { profileText } from '../../i18n/content';
 import { formatDuration } from '../../lib/format';
 import type { Clip } from '../../store/projects';
 import { grade as g, radius, space } from '../../theme/tokens';
@@ -22,11 +23,12 @@ const W = 92;
 const H = 56;
 
 export function ClipStrip({ clips, selectedId, onSelect, onLongPress, onAdd, adding }: Props) {
+  const t = useT();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.l, gap: space.s }}>
       {clips.map((clip, i) => {
         const selected = clip.id === selectedId;
-        const profile = getProfile(clip.input);
+        const profile = { id: clip.input, ...profileText(clip.input, t) };
         return (
           <PressableScale
             key={clip.id}
@@ -34,8 +36,8 @@ export function ClipStrip({ clips, selectedId, onSelect, onLongPress, onAdd, add
             onLongPress={() => onLongPress(clip)}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            accessibilityLabel={`Clipe ${i + 1}, ${clip.name}, ${profile.name}`}
-            accessibilityHint="Toque e segure para opções do clipe"
+            accessibilityLabel={t.editor.clipA11y(i + 1, clip.name, profile.name)}
+            accessibilityHint={t.editor.clipHint}
             style={{ width: W, height: H, borderRadius: radius.media, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: g.fill, borderWidth: 2, borderColor: selected ? g.accent : 'transparent' }}
           >
             {clip.thumb ? <Image source={{ uri: clip.thumb }} style={{ flex: 1 }} contentFit="cover" transition={120} /> : null}
@@ -54,7 +56,7 @@ export function ClipStrip({ clips, selectedId, onSelect, onLongPress, onAdd, add
         onPress={onAdd}
         disabled={adding}
         accessibilityRole="button"
-        accessibilityLabel="Adicionar clipes ao lote"
+        accessibilityLabel={t.editor.addClipsA11y}
         style={{ width: H, height: H, borderRadius: radius.media, borderCurve: 'continuous', backgroundColor: g.fill, alignItems: 'center', justifyContent: 'center' }}
       >
         <Icon name="add" size={22} color={g.label} weight="semibold" />

@@ -2,6 +2,7 @@ import Slider from '@react-native-community/slider';
 import { memo, useRef } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { haptic } from '../lib/haptics';
 import { space } from '../theme/tokens';
 import { usePalette } from '../theme/useTheme';
@@ -30,6 +31,7 @@ const defaultFormat = (v: number) => (v > 0 ? `+${Math.round(v)}` : `${Math.roun
  */
 export const SliderRow = memo(function SliderRow({ label, value, min, max, step = 1, neutral = 0, format = defaultFormat, onChange, onBegin, onEnd, swatch }: Props) {
   const c = usePalette();
+  const t = useT();
   const lastSide = useRef(Math.sign(value - neutral));
   const lastTap = useRef(0);
   const changed = value !== neutral;
@@ -51,7 +53,7 @@ export const SliderRow = memo(function SliderRow({ label, value, min, max, step 
             lastTap.current = now;
           }}
           accessibilityRole="button"
-          accessibilityHint="Toque duas vezes para redefinir"
+          accessibilityHint={t.editor.sliderHint}
           hitSlop={8}
           style={{ flexDirection: 'row', alignItems: 'center', gap: space.s }}
         >

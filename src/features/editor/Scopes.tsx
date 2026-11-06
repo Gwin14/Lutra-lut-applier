@@ -5,6 +5,7 @@ import type { SharedValue } from 'react-native-reanimated';
 
 import { sampleTexture, type LutTexture } from '../../color/lut';
 import { computeHistogram, computeWaveform, type ScopeMode } from '../../color/scopes';
+import { useT } from '../../i18n';
 import { readPixels, thumbnailAt } from '../../lib/media';
 import { radius, space } from '../../theme/tokens';
 import { Text } from '../../ui/Text';
@@ -70,6 +71,7 @@ function histogramPaths(frame: Frame) {
  * paused or playing) graded through the exact LUT the viewer uses.
  */
 export function Scopes({ uri, time, tex, mode, tick }: { uri: string; time: SharedValue<number>; tex: LutTexture | null; mode: ScopeMode; tick: number }) {
+  const t = useT();
   const [source, setSource] = useState<Frame | null>(null);
 
   useEffect(() => {
@@ -95,7 +97,7 @@ export function Scopes({ uri, time, tex, mode, tick }: { uri: string; time: Shar
   return (
     <View
       style={{ width: W + space.s * 2, padding: space.s, borderRadius: radius.media, borderCurve: 'continuous', backgroundColor: 'rgba(0,0,0,0.62)' }}
-      accessibilityLabel={mode === 'histogram' ? 'Histograma' : mode === 'waveform' ? 'Forma de onda' : 'Parade RGB'}
+      accessibilityLabel={mode === 'histogram' ? t.editor.histogram : mode === 'waveform' ? t.editor.waveformA11y : t.editor.parade}
     >
       <Canvas style={{ width: W, height: H }}>
         {[0.25, 0.5, 0.75].map((g) => (
@@ -114,7 +116,7 @@ export function Scopes({ uri, time, tex, mode, tick }: { uri: string; time: Shar
       </Canvas>
       {!drawn ? (
         <Text variant="caption2" color="rgba(255,255,255,0.6)" style={{ position: 'absolute', left: space.m, top: space.m }}>
-          Lendo quadro…
+          {t.editor.readingFrame}
         </Text>
       ) : null}
     </View>

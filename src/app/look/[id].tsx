@@ -4,11 +4,13 @@ import { useMemo, useState } from 'react';
 import { Alert, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { DEFAULT_GRADE } from '../../color/grade';
-import { LOOK_CATEGORIES, compileBuiltInLook, getBuiltInLook, lookSwatches } from '../../color/looks';
+import { compileBuiltInLook, getBuiltInLook, lookSwatches } from '../../color/looks';
 import type { ProfileId } from '../../color/profiles';
 import { startNewBatch } from '../../features/importClips';
 import { exportGradeCube } from '../../features/editor/extras';
 import { LookSwatches } from '../../features/LookSwatches';
+import { useT } from '../../i18n';
+import { categoryLabel, lookText } from '../../i18n/content';
 import { haptic } from '../../lib/haptics';
 import { deleteUserLut } from '../../lib/userLuts';
 import { GradedStill } from '../../preview/GradedStill';
@@ -26,6 +28,7 @@ import { Text } from '../../ui/Text';
 export default function LookSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = usePalette();
+  const t = useT();
   const { width } = useWindowDimensions();
   const builtIn = getBuiltInLook(id);
   const user = useLibrary((s) => s.userLuts.find((l) => l.id === id));
@@ -41,15 +44,16 @@ export default function LookSheet() {
   const swatches = useMemo(() => (builtIn ? lookSwatches(compileBuiltInLook(builtIn.id)) : (user?.swatches ?? [])), [builtIn, user]);
 
   if (!builtIn && !user) return null;
-  const name = builtIn?.name ?? user!.name;
-  const category = builtIn ? LOOK_CATEGORIES.find((x) => x.id === builtIn.category)?.label : 'Meu LUT';
+  const builtInText = builtIn ? lookText(builtIn, t) : null;
+  const name = builtInText?.name ?? user!.name;
+  const category = builtIn ? categoryLabel(builtIn.category, t) : t.common.myLut;
   const pw = Math.min(width, 700) - space.l * 2;
   const ph = Math.round((pw * 9) / 16);
 
   const applyTo = () => {
     if (!projects.length) return;
     showActions(
-      'Aplicar em qual lote?',
+      t.lookSheet.applyWhich,
       projects.slice(0, 8).map((p) => ({
         label: p.name,
         onPress: () => {
@@ -73,10 +77,10 @@ export default function LookSheet() {
         <Text variant="title2">{name}</Text>
         {builtIn ? (
           <Text variant="subhead" tone="secondary">
-            {builtIn.description}
+            {builtInText?.description}
           </Text>
         ) : (
-          <Text variant="subhead" tone="secondary">{`LUT .cube ${user!.sourceSize}${user!.kind === '3d' ? '³' : ' (1D)'}`}</Text>
+          <Text variant="subhead" tone="secondary">{t.lookSheet.cubeInfo(user!.sourceSize, user!.kind)}</Text>
         )}
       </View>
       <View style={{ width: pw, height: ph, borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: c.fill, alignSelf: 'center' }}>
@@ -84,19 +88,19 @@ export default function LookSheet() {
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text variant="footnote" tone="secondary">
-          {clipImage ? 'No seu clipe mais recente' : 'Na carta de referência'}
+          {clipImage ? t.lookSheet.onYourClip : t.lookSheet.onChart}
         </Text>
         <LookSwatches colors={swatches} size={14} />
       </View>
       <View style={{ marginHorizontal: -space.l }}>
-        <SliderRow label="Intensidade" value={strength} min={0} max={100} neutral={100} format={(v) => `${Math.round(v)}%`} onChange={(v) => setStrength(Math.round(v))} />
+        <SliderRow label={t.lookSheet.strength} value={strength} min={0} max={100} neutral={100} format={(v) => `${Math.round(v)}%`} onChange={(v) => setStrength(Math.round(v))} />
       </View>
       <View style={{ gap: space.m }}>
-        <Button label="Aplicar em novo lote" icon="add" size="large" stretch onPress={() => { router.back(); startNewBatch({ lookId: id }); }} />
-        {projects.length ? <Button label="Aplicar em um lote existente" variant="secondary" stretch onPress={applyTo} /> : null}
+        <Button label={t.lookSheet.applyNew} icon="add" size="large" stretch onPress={() => { router.back(); startNewBatch({ lookId: id }); }} />
+        {projects.length ? <Button label={t.lookSheet.applyExisting} variant="secondary" stretch onPress={applyTo} /> : null}
         <View style={{ flexDirection: 'row', gap: space.s }}>
           <Button
-            label={favorite ? 'Favorito' : 'Favoritar'}
+            label={favorite ? t.common.favorite : t.common.addFavorite}
             icon={favorite ? 'favoriteOn' : 'favorite'}
             variant="secondary"
             style={{ flex: 1 }}
@@ -106,20 +110,20 @@ export default function LookSheet() {
             }}
           />
           <Button
-            label="Exportar .cube"
+            label={t.lookSheet.exportCube}
             icon="cube"
             variant="secondary"
             style={{ flex: 1 }}
-            onPress={() => exportGradeCube('rec709', grade, 33, name).catch((e) => Alert.alert('Erro', String(e?.message ?? e)))}
+            onPress={() => exportGradeCube('rec709', grade, 33, name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e)))}
           />
         </View>
         {user ? (
           <Button
-            label="Excluir LUT"
+            label={t.lookSheet.deleteLut}
             variant="destructive"
             stretch
             onPress={() =>
-              confirmDestructive('Excluir este LUT?', 'Lotes que usam este LUT ficam sem look.', 'Excluir', () => {
+              confirmDestructive(t.lookSheet.deleteLutTitle, t.lookSheet.deleteLutMessage, t.common.delete, () => {
                 deleteUserLut(user);
                 router.back();
               })

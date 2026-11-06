@@ -5,6 +5,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import { frameStats, judgeLog, suggestProfile, type LogVerdict } from '../color/detect';
 import type { ProfileId } from '../color/profiles';
 import type { Clip } from '../store/projects';
+import { intlTag, tr } from '../i18n';
 import { fileSize } from './files';
 import { uid } from './id';
 
@@ -61,8 +62,11 @@ export async function analyzeLog(imageUri: string): Promise<LogVerdict | null> {
   }
 }
 
+/** The fields a clip needs; picker assets and shared files both provide them. */
+export type VideoInput = Pick<ImagePicker.ImagePickerAsset, 'uri' | 'duration' | 'fileName' | 'width' | 'height' | 'fileSize'>;
+
 export async function clipFromAsset(
-  asset: ImagePicker.ImagePickerAsset,
+  asset: VideoInput,
   opts: { autoDetect: boolean; preferredLog: ProfileId },
 ): Promise<Clip> {
   const duration = (asset.duration ?? 0) / 1000;
@@ -72,7 +76,7 @@ export async function clipFromAsset(
   return {
     id: uid(),
     uri: asset.uri,
-    name: asset.fileName ?? `Clipe ${new Date().toLocaleTimeString('pt-BR')}`,
+    name: asset.fileName ?? tr().project.defaultClipName(new Date().toLocaleTimeString(intlTag())),
     duration,
     width: asset.width,
     height: asset.height,
