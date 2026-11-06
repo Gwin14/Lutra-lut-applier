@@ -151,7 +151,7 @@ export default function ExportScreen() {
     }
   };
 
-  const unsupported = caps && !caps.webcodecs;
+  const unsupported = caps && caps.backend !== 'native' && !caps.webcodecs;
 
   return (
     <>

@@ -220,6 +220,83 @@ float3 sampleFrame(float2 px) {
 }
 ${GLSL_LUT}${BODY}${GLSL_MAIN}`;
 
+/**
+ * Android native engine: the decoder renders into a SurfaceTexture, sampled as
+ * an external OES texture. `uStMatrix` is the SurfaceTexture transform; the
+ * decoder is configured without rotation so `uRot` stays the only rotation.
+ */
+export const GLSL_FRAGMENT_OES = `#extension GL_OES_EGL_image_external : require
+${GLSL_TYPES}${UNIFORMS}
+uniform samplerExternalOES uFrameTex;
+uniform mat4 uStMatrix;
+float3 sampleFrame(float2 px) {
+  float2 uv = px / uRaw;
+  uv.y = 1.0 - uv.y;
+  return texture2D(uFrameTex, (uStMatrix * vec4(uv, 0.0, 1.0)).xy).rgb;
+}
+${GLSL_LUT}${BODY}${GLSL_MAIN}`;
+
+/**
+ * iOS native engine (Metal compute). MSL has no mutable globals, so the
+ * uniforms and textures live in a struct and BODY becomes its member functions.
+ * Frames arrive as 10-bit bi-planar Y'CbCr (x420, samples in the high bits),
+ * so no colour management happens before the grade, like the YUV WebGL path.
+ * Uniform buffer layout (floats): uOut 0-1, uRaw 2-3, uRot 4, uCrop 5-8,
+ * uLut 9-12, uFx 13-16, uView 17-20, uMisc 21-22, uYuvRange 23-26, uYuvMat 27-30.
+ */
+export const MSL_SOURCE = `#include <metal_stdlib>
+using namespace metal;
+#define mod(x, y) ((x) - (y) * floor((x) / (y)))
+constexpr sampler lutraLinear(filter::linear, address::clamp_to_edge, coord::normalized);
+
+struct LutraCtx {
+${UNIFORMS.replace(/uniform /g, '  ')}
+  float4 uYuvRange;
+  float4 uYuvMat;
+  texture2d<float> texY;
+  texture2d<float> texC;
+  texture2d<float> lutTex;
+
+  float3 sampleFrame(float2 px) {
+    float2 uv = px / uRaw;
+    float yy = texY.sample(lutraLinear, uv).r * uYuvRange.x + uYuvRange.y;
+    float2 c = texC.sample(lutraLinear, uv).rg * uYuvRange.z + uYuvRange.w;
+    float cb = c.x;
+    float cr = c.y;
+    return clamp(float3(yy + uYuvMat.x * cr, yy - uYuvMat.y * cb - uYuvMat.z * cr, yy + uYuvMat.w * cb), 0.0, 1.0);
+  }
+
+  float3 lutTexel(float2 px) { return lutTex.sample(lutraLinear, px / float2(uLut.z, uLut.w)).rgb; }
+${BODY}
+};
+
+kernel void lutraGrade(texture2d<float> texY [[texture(0)]],
+                       texture2d<float> texC [[texture(1)]],
+                       texture2d<float> lutTex [[texture(2)]],
+                       texture2d<float, access::write> outTex [[texture(3)]],
+                       constant float* u [[buffer(0)]],
+                       uint2 gid [[thread_position_in_grid]]) {
+  if (gid.x >= outTex.get_width() || gid.y >= outTex.get_height()) { return; }
+  LutraCtx c;
+  c.uOut = float2(u[0], u[1]);
+  c.uRaw = float2(u[2], u[3]);
+  c.uRot = u[4];
+  c.uCrop = float4(u[5], u[6], u[7], u[8]);
+  c.uLut = float4(u[9], u[10], u[11], u[12]);
+  c.uFx = float4(u[13], u[14], u[15], u[16]);
+  c.uView = float4(u[17], u[18], u[19], u[20]);
+  c.uMisc = float2(u[21], u[22]);
+  c.uYuvRange = float4(u[23], u[24], u[25], u[26]);
+  c.uYuvMat = float4(u[27], u[28], u[29], u[30]);
+  c.texY = texY;
+  c.texC = texC;
+  c.lutTex = lutTex;
+  outTex.write(float4(c.renderPixel(float2(gid) + 0.5), 1.0), gid);
+}
+`;
+
+export const NATIVE_SHADERS = { glslVertex: GLSL_VERTEX, glslFragment: GLSL_FRAGMENT_OES, msl: MSL_SOURCE };
+
 export type ShaderUniforms = {
   uOut: [number, number];
   uRaw: [number, number];

@@ -27,6 +27,7 @@ export default function SettingsScreen() {
   const [storageTick, setStorageTick] = useState(0);
   const storage = useMemo(() => directorySize(dirs.exports), [storageTick, records.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  const nativeEngine = caps?.backend === 'native';
 
   const codecLine = caps
     ? (['avc', 'hevc', 'av1', 'vp9'] as const)
@@ -96,11 +97,13 @@ export default function SettingsScreen() {
         <Row icon="widgets" title={t.settings.widgetsRow} value={widgetsAvailable ? t.settings.active : t.settings.unavailablePlural} />
       </Section>
 
-      <Section title={t.settings.engine} footer={t.settings.engineFooter}>
-        <Row icon="engine" title="WebCodecs" value={caps ? (caps.webcodecs ? t.settings.available : t.settings.unavailable) : '…'} />
+      <Section title={t.settings.engine} footer={nativeEngine || !caps ? t.settings.engineFooter : t.settings.engineFooterWebView}>
+        <Row icon="engine" title={t.settings.engineBackend} value={caps ? (nativeEngine ? t.settings.engineNative : t.settings.engineWebView) : '…'} />
+        {nativeEngine ? <Row title={t.settings.gpu} value={caps?.gpu ?? '…'} /> : null}
+        {caps && !nativeEngine ? <Row title="WebCodecs" value={caps.webcodecs ? t.settings.available : t.settings.unavailable} /> : null}
         <Row title={t.settings.videoCodecs} subtitle={codecLine} />
         <Row title={t.settings.audio} value={caps ? [caps.audio.aac && 'AAC', caps.audio.opus && 'Opus'].filter(Boolean).join(', ') || t.settings.directCopy : '…'} />
-        <Row title="WebGL" value={caps ? (caps.webgl ? `WebGL ${caps.webgl}` : t.settings.unavailable) : '…'} />
+        {caps && !nativeEngine ? <Row title="WebGL" value={caps.webgl ? `WebGL ${caps.webgl}` : t.settings.unavailable} /> : null}
       </Section>
 
       <Section title={t.settings.about}>

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["LutraEngineModule"]
+  },
+  "android": {
+    "modules": ["app.lutra.engine.LutraEngineModule"]
+  }
+}

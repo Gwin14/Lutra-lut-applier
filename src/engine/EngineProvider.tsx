@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, typ
 import { StyleSheet, View } from 'react-native';
 import { WebView as WebViewBase, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 
+import LutraEngine from '../../modules/lutra-engine';
 import { base64ToBytes } from '../color/lut';
 import { tr } from '../i18n';
 import { haptic } from '../lib/haptics';
@@ -18,6 +19,10 @@ import { ENGINE_HTML } from './engineHtml.generated';
 import { localizeEngineError } from './errors';
 import type { PreparedJob } from './jobs';
 import type { EngineCommand, EngineEvent } from './protocol';
+import { NATIVE_SHADERS } from './shader';
+
+/** Native engine (development/production builds); null in Expo Go and on web, which fall back to the WebView. */
+const NATIVE = process.env.EXPO_OS === 'web' ? null : LutraEngine;
 
 type EngineApi = {
   enqueue: (prepared: PreparedJob, title: string, projectId: string) => void;
@@ -46,16 +51,42 @@ type Running = {
 };
 
 /**
- * Hosts the render engine in an invisible WebView and serves its I/O:
- * byte-range reads of the source clips and positioned writes of the outputs.
- * Jobs run one at a time; the queue survives navigation (not app restarts).
+ * Hosts the render engine: the native module when it is linked, otherwise an
+ * invisible WebView (Expo Go) whose I/O is served from here (byte-range reads
+ * of the source clips and positioned writes of the outputs). Both emit the same
+ * EngineEvents. Jobs run one at a time; the queue survives navigation (not app restarts).
  */
 export function EngineProvider({ children }: { children: ReactNode }) {
   const web = useRef<WebView>(null);
   const queue = useRef<{ prepared: PreparedJob; title: string; projectId: string }[]>([]);
   const running = useRef<Running | null>(null);
+  const onEventRef = useRef<(evt: EngineEvent) => void>(() => {});
 
   const send = useCallback((cmd: EngineCommand) => {
+    if (NATIVE) {
+      const native = NATIVE;
+      if (cmd.type === 'probe') {
+        native
+          .probe()
+          .then((json) => onEventRef.current({ type: 'caps', caps: JSON.parse(json) }))
+          .catch((e) => __DEV__ && console.warn('[engine] probe failed', e));
+      } else if (cmd.type === 'cancel') {
+        native.cancel();
+      } else if (cmd.type === 'render') {
+        const r = running.current;
+        const destinations: Record<string, string> = {};
+        r?.prepared.job.outputs.forEach((o, i) => {
+          destinations[String(o.index)] = r.prepared.records[i].uri;
+        });
+        try {
+          native.render(JSON.stringify(cmd.job), JSON.stringify(r?.prepared.sources ?? {}), JSON.stringify(destinations), JSON.stringify(NATIVE_SHADERS));
+        } catch (e) {
+          onEventRef.current({ type: 'outputError', outIndex: -1, message: String((e as Error)?.message ?? e) });
+          onEventRef.current({ type: 'jobDone', canceled: false });
+        }
+      }
+      return;
+    }
     web.current?.injectJavaScript(`window.__lutraEngine && window.__lutraEngine.receive(${JSON.stringify(JSON.stringify(cmd))}); true;`);
   }, []);
 
@@ -274,6 +305,21 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     [finishJob, pump, send, syncWidgets],
   );
 
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
+  useEffect(() => {
+    if (!NATIVE) return;
+    const sub = NATIVE.addListener('onEvent', ({ json }) => {
+      try {
+        onEventRef.current(JSON.parse(json));
+      } catch {}
+    });
+    onEventRef.current({ type: 'ready' });
+    return () => sub.remove();
+  }, []);
+
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
       let evt: EngineEvent;
@@ -312,7 +358,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   return (
     <EngineContext.Provider value={api}>
       {children}
-      {process.env.EXPO_OS === 'web' ? null : (
+      {process.env.EXPO_OS === 'web' || NATIVE ? null : (
       <View pointerEvents="none" style={styles.host} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <WebView
           ref={web}
