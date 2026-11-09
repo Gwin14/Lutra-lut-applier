@@ -13,6 +13,7 @@ import { importCubeFiles } from '../../../lib/userLuts';
 import { GradedStill } from '../../../preview/GradedStill';
 import { useThumbLut } from '../../../preview/lutImage';
 import { useLibrary } from '../../../store/library';
+import { requirePro } from '../../../store/pro';
 import { useProjects, type Clip, type Project } from '../../../store/projects';
 import { grade as g, radius, space } from '../../../theme/tokens';
 import { showActions } from '../../../ui/actions';
@@ -72,6 +73,7 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
   };
 
   const importLuts = async () => {
+    if (!requirePro()) return;
     const res = await importCubeFiles();
     if (res.imported.length) {
       haptic.success();

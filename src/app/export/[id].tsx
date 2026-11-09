@@ -12,6 +12,7 @@ import { useT } from '../../i18n';
 import { formatBytes, formatDuration, formatEta, formatResolution } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useActiveProgress, useExports } from '../../store/exports';
+import { requirePro, useProStore } from '../../store/pro';
 import { useProjects } from '../../store/projects';
 import { useSettings, type ExportPreset } from '../../store/settings';
 import { radius, space } from '../../theme/tokens';
@@ -33,6 +34,7 @@ const RESOLUTIONS: { id: ResolutionId; label: string | null }[] = [
   { id: '720', label: '720p' },
   { id: '540', label: '540p' },
 ];
+const PRO_RESOLUTIONS: ResolutionId[] = ['source', '2160', '1440'];
 const FPS: (number | 'source')[] = ['source', 24, 25, 30, 50, 60];
 const MODES: ExportPreset['mode'][] = ['separate', 'merge'];
 const TRANSITIONS: ExportPreset['transition'][] = ['cut', 'fade'];
@@ -98,7 +100,8 @@ export default function ExportScreen() {
   const busy = useExports((s) => !!s.active);
   const engine = useEngine();
   const insets = useSafeAreaInsets();
-  const [preset, setPreset] = useState<ExportPreset>(saved);
+  const isPro = useProStore((s) => s.isPro);
+  const [preset, setPreset] = useState<ExportPreset>(() => (!useProStore.getState().isPro && PRO_RESOLUTIONS.includes(saved.resolution) ? { ...saved, resolution: '1080' } : saved));
   const [selected, setSelected] = useState<string[]>(() => project?.clips.map((c) => c.id) ?? []);
   const [phase, setPhase] = useState<'form' | 'preparing' | 'running'>(busy ? 'running' : 'form');
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +138,7 @@ export default function ExportScreen() {
   const files = preset.mode === 'merge' ? 1 : chosen.length;
 
   const start = async () => {
+    if ((selected.length > 1 || PRO_RESOLUTIONS.includes(preset.resolution)) && !requirePro()) return;
     setError(null);
     setPhase('preparing');
     try {
@@ -217,10 +221,10 @@ export default function ExportScreen() {
               <SwitchRow title={t.exportSheet.includeAudio} subtitle={t.exportSheet.includeAudioHint} value={preset.audio} onValueChange={(audio) => set({ audio })} />
             </Section>
 
-            <Section title={t.exportSheet.resolution}>
+            <Section title={t.exportSheet.resolution} footer={isPro ? undefined : t.pro.freeLimit}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s, padding: space.l }}>
                 {RESOLUTIONS.map((r) => (
-                  <Chip key={r.id} label={r.label ?? t.common.original} selected={preset.resolution === r.id} onPress={() => set({ resolution: r.id })} />
+                  <Chip key={r.id} label={r.label ?? t.common.original} selected={preset.resolution === r.id} onPress={() => { if (!PRO_RESOLUTIONS.includes(r.id) || requirePro()) set({ resolution: r.id }); }} />
                 ))}
               </View>
             </Section>

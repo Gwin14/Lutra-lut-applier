@@ -9,6 +9,7 @@ import { dirs, directorySize } from '../../../lib/files';
 import { formatBytes } from '../../../lib/format';
 import { haptic } from '../../../lib/haptics';
 import { useExports } from '../../../store/exports';
+import { presentPaywall, purchasesSupported, useProStore } from '../../../store/pro';
 import { useSettings, type Settings } from '../../../store/settings';
 import { space } from '../../../theme/tokens';
 import { usePalette, useScheme } from '../../../theme/useTheme';
@@ -22,6 +23,7 @@ import { widgetsAvailable } from '../../../widgets';
 export default function SettingsScreen() {
   const s = useSettings();
   const t = useT();
+  const isPro = useProStore((x) => x.isPro);
   const caps = useExports((x) => x.caps);
   const records = useExports((x) => x.records);
   const [storageTick, setStorageTick] = useState(0);
@@ -38,6 +40,12 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: space.l, gap: space.xxl, paddingBottom: space.xxxl * 2 }}>
+      {purchasesSupported ? (
+        <Section>
+          <Row title={t.pro.settingsRow} value={isPro ? t.pro.settingsActive : t.pro.settingsUpgrade} chevron={!isPro} onPress={isPro ? undefined : presentPaywall} />
+        </Section>
+      ) : null}
+
       <Section title={t.settings.language}>
         <Segmented<Settings['language']> values={['system', 'pt', 'en']} labels={[t.settings.languageSystem, LANG_NAMES.pt, LANG_NAMES.en]} value={s.language} onChange={(v) => s.set('language', v)} />
       </Section>

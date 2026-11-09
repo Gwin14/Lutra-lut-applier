@@ -23,6 +23,7 @@ import { useT } from '../../i18n';
 import { haptic } from '../../lib/haptics';
 import { checkClip, useClipStatus, useFileWatcher } from '../../store/fileStatus';
 import { useLibrary } from '../../store/library';
+import { requirePro } from '../../store/pro';
 import { effectiveGrade, useHistoryState, useProjects, type Clip } from '../../store/projects';
 import { previewLutSize, useSettings } from '../../store/settings';
 import { useGradeLut } from '../../preview/lutImage';
@@ -215,8 +216,8 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           }
         },
       },
-      { label: t.editor.exportCube(33), onPress: () => exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
-      { label: t.editor.exportCube(65), onPress: () => exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
+      { label: t.editor.exportCube(33), onPress: () => requirePro() && exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
+      { label: t.editor.exportCube(65), onPress: () => requirePro() && exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
       {
         label: t.editor.saveRecipe,
         onPress: () => {
@@ -270,12 +271,13 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           tone="clear"
           active={!!scopes}
           onPress={() => {
+            if (!requirePro()) return;
             setScopes((s) => SCOPE_CYCLE[(SCOPE_CYCLE.indexOf(s) + 1) % SCOPE_CYCLE.length]);
             haptic.selection();
           }}
         />
-        <IconButton icon="falseColor" label={t.editor.falseColor} tone="clear" active={falseColor} onPress={() => setFalseColor((v) => !v)} />
-        <IconButton icon="zebra" label={t.editor.zebra} tone="clear" active={zebra} onPress={() => setZebra((v) => !v)} />
+        <IconButton icon="falseColor" label={t.editor.falseColor} tone="clear" active={falseColor} onPress={() => requirePro() && setFalseColor((v) => !v)} />
+        <IconButton icon="zebra" label={t.editor.zebra} tone="clear" active={zebra} onPress={() => requirePro() && setZebra((v) => !v)} />
       </View>
     </View>
   );

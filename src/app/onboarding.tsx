@@ -8,6 +8,7 @@ import { OnboardingArt, type ArtKind } from '../features/onboarding/OnboardingAr
 import { useT } from '../i18n';
 import { haptic } from '../lib/haptics';
 import { useSettings } from '../store/settings';
+import { presentPaywall, useProStore } from '../store/pro';
 import { space } from '../theme/tokens';
 import { usePalette } from '../theme/useTheme';
 import { Button } from '../ui/Button';
@@ -36,8 +37,13 @@ export default function Onboarding() {
   // otherwise replace so the introduction is gone from the stack for good.
   useEffect(() => {
     if (!done || !onboarded) return;
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/');
+    // First run only: the replayed intro from Settings takes the branch above.
+    if (!useProStore.getState().isPro) setTimeout(presentPaywall, 400);
   }, [done, onboarded]);
 
   const x = useSharedValue(0);

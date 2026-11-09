@@ -9,6 +9,7 @@ import { holdNativeSplash, Splash } from '../features/Splash';
 import { useLang, useT } from '../i18n';
 import { loadAllUserLuts } from '../lib/userLuts';
 import { useLibrary } from '../store/library';
+import { initPurchases } from '../store/pro';
 import { useSettings, useSettingsHydrated } from '../store/settings';
 import { dark, grade, light } from '../theme/tokens';
 import { useAppScheme } from '../theme/useTheme';
@@ -41,6 +42,10 @@ export default function RootLayout() {
     loadAllUserLuts().catch(() => {});
   }, [lutCount]);
 
+  useEffect(() => {
+    initPurchases();
+  }, []);
+
   const navTheme = scheme === 'dark' ? DarkTheme : DefaultTheme;
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.bgGrouped }}>
@@ -66,6 +71,7 @@ export default function RootLayout() {
                 }}
               />
               <Stack.Screen name="export/[id]" options={{ presentation: 'modal', title: t.screens.export }} />
+              <Stack.Screen name="paywall" options={{ presentation: 'modal', title: '' }} />
               <Stack.Screen
                 name="profile/[id]"
                 options={{ presentation: 'formSheet', title: t.screens.profile, sheetAllowedDetents: [0.65, 1], sheetGrabberVisible: true }}
