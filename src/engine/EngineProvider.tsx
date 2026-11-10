@@ -13,6 +13,7 @@ import { haptic } from '../lib/haptics';
 import { formatEta } from '../lib/format';
 import { thumbnailAt } from '../lib/media';
 import { useExports } from '../store/exports';
+import { useQuota } from '../store/quota';
 import { useSettings } from '../store/settings';
 import { endRenderActivity, startRenderActivity, updateRenderActivity, updateRenderWidget } from '../widgets';
 import { ENGINE_HTML } from './engineHtml.generated';
@@ -268,6 +269,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             }
           })();
           s.patchRecord(rec.id, { status: 'done', progress: 1, duration: evt.duration, size, finishedAt: Date.now() });
+          useQuota.getState().countExport();
           // Post-processing that does not block the next output.
           (async () => {
             const thumb = await thumbnailAt(rec.uri, Math.min(1, evt.duration / 3), 0.5);

@@ -4,6 +4,8 @@ import { radius, space } from '../theme/tokens';
 import { usePalette } from '../theme/useTheme';
 import { Icon, type IconName } from './Icon';
 import { PressableScale } from './Pressable';
+import { tr } from '../i18n';
+import { ProBadge } from './States';
 import { Text } from './Text';
 
 type Props = {
@@ -17,10 +19,12 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   stretch?: boolean;
   accessibilityHint?: string;
+  /** Marks an action that needs Lutra Pro with a subtle tag. */
+  pro?: boolean;
 };
 
 /** Actions are pills. Primary = the one accent; secondary = neutral fill. */
-export function Button({ label, onPress, icon, variant = 'primary', size = 'regular', disabled, loading, style, stretch, accessibilityHint }: Props) {
+export function Button({ label, onPress, icon, variant = 'primary', size = 'regular', disabled, loading, style, stretch, accessibilityHint, pro }: Props) {
   const c = usePalette();
   const bg =
     variant === 'primary' ? c.accent : variant === 'secondary' ? c.fill : variant === 'destructive' ? c.fill : 'transparent';
@@ -33,7 +37,7 @@ export function Button({ label, onPress, icon, variant = 'primary', size = 'regu
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={pro ? tr().pro.proOption(label) : label}
       accessibilityHint={accessibilityHint}
       style={[
         {
@@ -54,6 +58,7 @@ export function Button({ label, onPress, icon, variant = 'primary', size = 'regu
         <Text variant={textVariant} weight="600" color={fg} numberOfLines={1}>
           {label}
         </Text>
+        {pro ? <ProBadge onAccent={variant === 'primary'} /> : null}
       </View>
     </PressableScale>
   );
@@ -69,6 +74,7 @@ export function IconButton({
   active,
   disabled,
   color,
+  pro,
 }: {
   icon: IconName;
   onPress?: () => void;
@@ -78,6 +84,8 @@ export function IconButton({
   active?: boolean;
   disabled?: boolean;
   color?: string;
+  /** Marks a control that needs Lutra Pro with a tiny corner sparkle. */
+  pro?: boolean;
 }) {
   const c = usePalette();
   const bg = active ? c.accent : tone === 'neutral' ? c.fill : tone === 'accent' ? c.accent : 'transparent';
@@ -88,12 +96,17 @@ export function IconButton({
       disabled={disabled}
       feedback={tone === 'clear' ? 'opacity' : 'scale'}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={pro ? tr().pro.proOption(label) : label}
       accessibilityState={{ selected: !!active, disabled: !!disabled }}
       hitSlop={size < 44 ? (44 - size) / 2 : 0}
       style={{ width: size, height: size, borderRadius: radius.pill, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}
     >
       <Icon name={icon} size={Math.round(size * 0.45)} color={fg} weight="semibold" />
+      {pro && !active ? (
+        <View pointerEvents="none" style={{ position: 'absolute', top: size * 0.12, right: size * 0.12 }}>
+          <Icon name="sparkle" size={Math.max(8, Math.round(size * 0.22))} color={c.accentText} weight="bold" />
+        </View>
+      ) : null}
     </PressableScale>
   );
 }

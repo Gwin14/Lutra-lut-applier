@@ -1,18 +1,19 @@
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useEngine } from '../../engine/EngineProvider';
 import { estimateBitrate, outputSize } from '../../engine/geometry';
 import { estimateJobBytes, prepareJob } from '../../engine/jobs';
 import { CONTAINER_CODECS, type ContainerId, type ResolutionId, type VideoCodecId } from '../../engine/protocol';
-import { useT } from '../../i18n';
-import { formatBytes, formatDuration, formatEta, formatResolution } from '../../lib/format';
+import { tr, useT } from '../../i18n';
+import { formatBytes, formatDayMonth, formatDuration, formatEta, formatResolution } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useActiveProgress, useExports } from '../../store/exports';
-import { requirePro, useProStore } from '../../store/pro';
+import { presentPaywall, requirePro, useProLocked, useProStore } from '../../store/pro';
+import { exportsLeft, FREE_MONTHLY_EXPORTS, QUOTA_WARN_AT, quotaResetsAt, useExportsLeft } from '../../store/quota';
 import { useProjects } from '../../store/projects';
 import { useSettings, type ExportPreset } from '../../store/settings';
 import { radius, space } from '../../theme/tokens';
@@ -52,6 +53,7 @@ function Progress({ onDone }: { onDone: () => void }) {
       <View style={{ alignItems: 'center', gap: space.l, padding: space.xxl }}>
         <Text variant="title3">{t.exportSheet.done}</Text>
         <Button label={t.exportSheet.viewExports} onPress={onDone} />
+        <QuotaNotice />
       </View>
     );
   }
@@ -101,6 +103,8 @@ export default function ExportScreen() {
   const engine = useEngine();
   const insets = useSafeAreaInsets();
   const isPro = useProStore((s) => s.isPro);
+  const locked = useProLocked();
+  const left = useExportsLeft();
   const [preset, setPreset] = useState<ExportPreset>(() => (!useProStore.getState().isPro && PRO_RESOLUTIONS.includes(saved.resolution) ? { ...saved, resolution: '1080' } : saved));
   const [selected, setSelected] = useState<string[]>(() => project?.clips.map((c) => c.id) ?? []);
   const [phase, setPhase] = useState<'form' | 'preparing' | 'running'>(busy ? 'running' : 'form');
@@ -138,7 +142,8 @@ export default function ExportScreen() {
   const files = preset.mode === 'merge' ? 1 : chosen.length;
 
   const start = async () => {
-    if ((selected.length > 1 || PRO_RESOLUTIONS.includes(preset.resolution)) && !requirePro()) return;
+    if (PRO_RESOLUTIONS.includes(preset.resolution) && !requirePro()) return;
+    if (!quotaAllows(files)) return;
     setError(null);
     setPhase('preparing');
     try {
@@ -182,6 +187,7 @@ export default function ExportScreen() {
               />
             ) : null}
             {error ? <InlineNotice tone="error" title={t.exportSheet.startFailed} message={error} /> : null}
+            <QuotaNotice />
 
             <Section title={t.exportSheet.output}>
               <Segmented values={MODES} labels={[t.exportSheet.modeSeparate, t.exportSheet.modeMerge]} value={preset.mode} onChange={(mode) => set({ mode })} />
@@ -224,7 +230,7 @@ export default function ExportScreen() {
             <Section title={t.exportSheet.resolution} footer={isPro ? undefined : t.pro.freeLimit}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s, padding: space.l }}>
                 {RESOLUTIONS.map((r) => (
-                  <Chip key={r.id} label={r.label ?? t.common.original} selected={preset.resolution === r.id} onPress={() => { if (!PRO_RESOLUTIONS.includes(r.id) || requirePro()) set({ resolution: r.id }); }} />
+                  <Chip key={r.id} label={r.label ?? t.common.original} selected={preset.resolution === r.id} pro={locked && PRO_RESOLUTIONS.includes(r.id)} onPress={() => { if (!PRO_RESOLUTIONS.includes(r.id) || requirePro()) set({ resolution: r.id }); }} />
                 ))}
               </View>
             </Section>
@@ -248,6 +254,7 @@ export default function ExportScreen() {
           </ScrollView>
 
           <ExportBar
+            quota={left !== null && left > QUOTA_WARN_AT ? t.pro.quotaLeft(left, FREE_MONTHLY_EXPORTS) : null}
             summary={`${t.common.files(files)} · ${firstSize ? formatResolution(firstSize.width, firstSize.height) : ''} · ${formatDuration(totalDuration)} · ≈ ${formatBytes(bytes)}`}
             label={preset.mode === 'merge' ? t.exportSheet.exportSingle : t.exportSheet.exportN(files)}
             disabled={!chosen.length || !engineReady || !caps || !!unsupported}
@@ -261,7 +268,7 @@ export default function ExportScreen() {
   );
 }
 
-function ExportBar({ summary, label, disabled, loading, onPress, bottom }: { summary: string; label: string; disabled: boolean; loading: boolean; onPress: () => void; bottom: number }) {
+function ExportBar({ summary, quota, label, disabled, loading, onPress, bottom }: { summary: string; quota: string | null; label: string; disabled: boolean; loading: boolean; onPress: () => void; bottom: number }) {
   const c = usePalette();
   const t = useT();
   return (
@@ -270,6 +277,42 @@ function ExportBar({ summary, label, disabled, loading, onPress, bottom }: { sum
         {loading ? t.exportSheet.preparingColors : summary}
       </Text>
       <Button label={label} size="large" onPress={onPress} disabled={disabled} loading={loading} stretch icon="exports" />
+      {quota ? (
+        <Text variant="caption1" tone="secondary" center numberOfLines={1}>
+          {quota}
+        </Text>
+      ) : null}
     </View>
   );
+}
+
+/** Heads-up shown well before the free limit, so it never comes as a surprise. */
+function QuotaNotice() {
+  const t = useT();
+  const left = useExportsLeft();
+  if (left === null || left > QUOTA_WARN_AT) return null;
+  const date = formatDayMonth(quotaResetsAt());
+  return (
+    <InlineNotice
+      tone="warning"
+      title={left === 0 ? t.pro.quotaOutTitle : t.pro.quotaWarnTitle(left)}
+      message={left === 0 ? t.pro.quotaOutMessage(FREE_MONTHLY_EXPORTS, date) : t.pro.quotaWarnMessage(date)}
+      action={<Button label={t.pro.seePro} variant="plain" size="small" onPress={presentPaywall} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />}
+    />
+  );
+}
+
+/** Free plan check before a render: explains the limit instead of just walling it off. */
+function quotaAllows(files: number) {
+  const left = exportsLeft();
+  if (left === null || files <= left) return true;
+  const t = tr();
+  const date = formatDayMonth(quotaResetsAt());
+  const [title, message] = left === 0 ? [t.pro.quotaOutTitle, t.pro.quotaOutMessage(FREE_MONTHLY_EXPORTS, date)] : [t.pro.quotaTooManyTitle(left), t.pro.quotaTooManyMessage(files, left)];
+  haptic.warning();
+  Alert.alert(title, message, [
+    { text: t.pro.notNow, style: 'cancel' },
+    { text: t.pro.seePro, onPress: presentPaywall },
+  ]);
+  return false;
 }

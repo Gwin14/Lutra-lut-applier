@@ -92,3 +92,8 @@ export function requirePro() {
   presentPaywall();
   return false;
 }
+
+/** True while Pro-only options should show their Pro tag. */
+export function useProLocked() {
+  return useProStore((s) => s.ready && !s.isPro);
+}

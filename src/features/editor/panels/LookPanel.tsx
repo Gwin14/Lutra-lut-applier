@@ -13,7 +13,7 @@ import { importCubeFiles } from '../../../lib/userLuts';
 import { GradedStill } from '../../../preview/GradedStill';
 import { useThumbLut } from '../../../preview/lutImage';
 import { useLibrary } from '../../../store/library';
-import { requirePro } from '../../../store/pro';
+import { requirePro, useProLocked } from '../../../store/pro';
 import { useProjects, type Clip, type Project } from '../../../store/projects';
 import { grade as g, radius, space } from '../../../theme/tokens';
 import { showActions } from '../../../ui/actions';
@@ -48,6 +48,7 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
   const l = t.lookPanel;
   const image = useImage(clip.thumb ?? undefined);
   const [filter, setFilter] = useState<Filter>('all');
+  const locked = useProLocked();
   const favorites = useLibrary((s) => s.favorites);
   const userLuts = useLibrary((s) => s.userLuts);
   const recipes = useLibrary((s) => s.recipes);
@@ -134,7 +135,7 @@ export function LookPanel({ project, clip, grade }: { project: Project; clip: Cl
 
       <View style={{ paddingHorizontal: space.l, gap: space.m }}>
         <View style={{ flexDirection: 'row', gap: space.s }}>
-          <Button label={l.importCube} icon="import" variant="secondary" size="small" onPress={importLuts} />
+          <Button label={l.importCube} icon="import" variant="secondary" size="small" pro={locked} onPress={importLuts} />
           <Button label={l.saveRecipe} icon="recipe" variant="secondary" size="small" onPress={saveRecipe} />
           {grade.lookId ? (
             <Button
