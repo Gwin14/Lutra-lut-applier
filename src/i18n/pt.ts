@@ -132,6 +132,8 @@ export const pt = {
     viewExports: 'Ver exportações',
     keepOpenTitle: 'Mantenha o Lutra aberto',
     keepOpenMessage: 'A codificação usa o hardware de vídeo do aparelho e pausa se o app for para segundo plano. A tela não vai apagar sozinha.',
+    backgroundTitle: 'Pode sair do Lutra',
+    backgroundMessage: 'A exportação continua em segundo plano, um pouco mais devagar, e o progresso fica na Tela Bloqueada. Fechar o Lutra pelo seletor de apps cancela a exportação.',
     keepEditing: 'Continuar editando',
     startingEngine: 'Iniciando o motor de vídeo…',
     startingEngineMessage: 'Verificando quais codecs este aparelho consegue codificar.',
@@ -381,7 +383,7 @@ export const pt = {
   pro: {
     title: 'Lutra Pro',
     subtitle: 'Todo o fluxo de log para quem grava de verdade.',
-    features: ['Exportações ilimitadas, em lote ou juntas num vídeo só', 'Exportação em 4K e na resolução original', 'Importe e exporte LUTs .cube', 'Scopes, falsa cor e zebra'],
+    features: ['Lotes sem limite de vídeos, separados ou juntos num vídeo só', 'Exportação em 4K e na resolução original', 'Importe e exporte LUTs .cube', 'Scopes, falsa cor e zebra'],
     annual: 'Anual',
     monthly: 'Mensal',
     lifetime: 'Vitalício',
@@ -409,13 +411,9 @@ export const pt = {
     proOption: (label: string) => `${label} · Pro`,
     seePro: 'Conhecer o Pro',
     notNow: 'Agora não',
-    quotaLeft: (left: number, total: number) => `${left} de ${total} exportações grátis restantes este mês`,
-    quotaWarnTitle: (left: number) => (left === 1 ? 'Resta 1 exportação grátis este mês' : `Restam ${left} exportações grátis este mês`),
-    quotaWarnMessage: (date: string) => `O limite renova em ${date}. Com o Pro você exporta sem limite.`,
-    quotaOutTitle: 'Exportações grátis do mês esgotadas',
-    quotaOutMessage: (total: number, date: string) => `O plano grátis inclui ${total} exportações por mês e renova em ${date}. Seus projetos continuam salvos e você pode seguir editando normalmente.`,
-    quotaTooManyTitle: (left: number) => (left === 1 ? 'Resta 1 exportação este mês' : `Restam ${left} exportações este mês`),
-    quotaTooManyMessage: (files: number, left: number) => `Esta exportação gera ${files} vídeos. Selecione até ${left} ${left === 1 ? 'clipe' : 'clipes'} ou escolha “Juntar em um vídeo”.`,
+    batchCount: (count: number, limit: number) => `${count} de ${limit} vídeos neste lote no plano grátis`,
+    batchLimitTitle: (limit: number) => `Até ${limit} vídeos por lote`,
+    batchLimitMessage: (limit: number) => `No plano grátis cada exportação leva até ${limit} vídeos. Exporte o restante em outro lote ou assine o Pro para exportar tudo de uma vez.`,
   },
   settings: {
     replayIntro: 'Ver introdução',
@@ -509,6 +507,7 @@ export const pt = {
     exportedToday: (c: number): string => (c === 1 ? 'vídeo exportado hoje' : 'vídeos exportados hoje'),
     lookOfDay: 'LOOK DO DIA',
     readyOf: (finished: number, total: number, eta: string) => `${finished} de ${total} prontos · ${eta}`,
+    exportingCount: (n: number) => (n === 1 ? 'Exportando 1 vídeo' : `Exportando ${n} vídeos`),
   },
 
   lookCategories: {

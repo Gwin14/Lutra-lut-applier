@@ -9,11 +9,11 @@ import { estimateBitrate, outputSize } from '../../engine/geometry';
 import { estimateJobBytes, prepareJob } from '../../engine/jobs';
 import { CONTAINER_CODECS, type ContainerId, type ResolutionId, type VideoCodecId } from '../../engine/protocol';
 import { tr, useT } from '../../i18n';
-import { formatBytes, formatDayMonth, formatDuration, formatEta, formatResolution } from '../../lib/format';
+import { formatBytes, formatDuration, formatEta, formatResolution } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { useActiveProgress, useExports } from '../../store/exports';
 import { presentPaywall, requirePro, useProLocked, useProStore } from '../../store/pro';
-import { exportsLeft, FREE_MONTHLY_EXPORTS, QUOTA_WARN_AT, quotaResetsAt, useExportsLeft } from '../../store/quota';
+import { batchLimit, useBatchLimit } from '../../store/quota';
 import { useProjects } from '../../store/projects';
 import { useSettings, type ExportPreset } from '../../store/settings';
 import { radius, space } from '../../theme/tokens';
@@ -53,7 +53,6 @@ function Progress({ onDone }: { onDone: () => void }) {
       <View style={{ alignItems: 'center', gap: space.l, padding: space.xxl }}>
         <Text variant="title3">{t.exportSheet.done}</Text>
         <Button label={t.exportSheet.viewExports} onPress={onDone} />
-        <QuotaNotice />
       </View>
     );
   }
@@ -76,7 +75,11 @@ function Progress({ onDone }: { onDone: () => void }) {
           {`${p.current?.name ?? ''} · ${t.common.xOfY(Math.min(p.finished + 1, p.count), p.count)} · ${eta}`}
         </Text>
       </View>
-      <InlineNotice title={t.exportSheet.keepOpenTitle} message={t.exportSheet.keepOpenMessage} />
+      {process.env.EXPO_OS === 'ios' ? (
+        <InlineNotice title={t.exportSheet.backgroundTitle} message={t.exportSheet.backgroundMessage} />
+      ) : (
+        <InlineNotice title={t.exportSheet.keepOpenTitle} message={t.exportSheet.keepOpenMessage} />
+      )}
       <View style={{ gap: space.m }}>
         <Button label={t.exportSheet.keepEditing} variant="secondary" onPress={() => router.back()} stretch />
         <Button
@@ -104,9 +107,9 @@ export default function ExportScreen() {
   const insets = useSafeAreaInsets();
   const isPro = useProStore((s) => s.isPro);
   const locked = useProLocked();
-  const left = useExportsLeft();
+  const limit = useBatchLimit();
   const [preset, setPreset] = useState<ExportPreset>(() => (!useProStore.getState().isPro && PRO_RESOLUTIONS.includes(saved.resolution) ? { ...saved, resolution: '1080' } : saved));
-  const [selected, setSelected] = useState<string[]>(() => project?.clips.map((c) => c.id) ?? []);
+  const [selected, setSelected] = useState<string[]>(() => (project?.clips.map((c) => c.id) ?? []).slice(0, batchLimit() ?? undefined));
   const [phase, setPhase] = useState<'form' | 'preparing' | 'running'>(busy ? 'running' : 'form');
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<ExportPreset>) => setPreset((p) => ({ ...p, ...patch }));
@@ -143,7 +146,7 @@ export default function ExportScreen() {
 
   const start = async () => {
     if (PRO_RESOLUTIONS.includes(preset.resolution) && !requirePro()) return;
-    if (!quotaAllows(files)) return;
+    if (!batchAllows(chosen.length)) return;
     setError(null);
     setPhase('preparing');
     try {
@@ -187,7 +190,6 @@ export default function ExportScreen() {
               />
             ) : null}
             {error ? <InlineNotice tone="error" title={t.exportSheet.startFailed} message={error} /> : null}
-            <QuotaNotice />
 
             <Section title={t.exportSheet.output}>
               <Segmented values={MODES} labels={[t.exportSheet.modeSeparate, t.exportSheet.modeMerge]} value={preset.mode} onChange={(mode) => set({ mode })} />
@@ -205,6 +207,7 @@ export default function ExportScreen() {
                   subtitle={`${formatDuration(Math.max(0, c.trim.end - c.trim.start))}${c.trim.start > 0 || c.trim.end < c.duration ? t.exportSheet.trimmed : ''}`}
                   checked={selected.includes(c.id)}
                   onPress={() => {
+                    if (!selected.includes(c.id) && !batchAllows(selected.length + 1)) return;
                     haptic.selection();
                     setSelected((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]));
                   }}
@@ -254,7 +257,7 @@ export default function ExportScreen() {
           </ScrollView>
 
           <ExportBar
-            quota={left !== null && left > QUOTA_WARN_AT ? t.pro.quotaLeft(left, FREE_MONTHLY_EXPORTS) : null}
+            quota={limit !== null ? t.pro.batchCount(chosen.length, limit) : null}
             summary={`${t.common.files(files)} · ${firstSize ? formatResolution(firstSize.width, firstSize.height) : ''} · ${formatDuration(totalDuration)} · ≈ ${formatBytes(bytes)}`}
             label={preset.mode === 'merge' ? t.exportSheet.exportSingle : t.exportSheet.exportN(files)}
             disabled={!chosen.length || !engineReady || !caps || !!unsupported}
@@ -286,31 +289,13 @@ function ExportBar({ summary, quota, label, disabled, loading, onPress, bottom }
   );
 }
 
-/** Heads-up shown well before the free limit, so it never comes as a surprise. */
-function QuotaNotice() {
-  const t = useT();
-  const left = useExportsLeft();
-  if (left === null || left > QUOTA_WARN_AT) return null;
-  const date = formatDayMonth(quotaResetsAt());
-  return (
-    <InlineNotice
-      tone="warning"
-      title={left === 0 ? t.pro.quotaOutTitle : t.pro.quotaWarnTitle(left)}
-      message={left === 0 ? t.pro.quotaOutMessage(FREE_MONTHLY_EXPORTS, date) : t.pro.quotaWarnMessage(date)}
-      action={<Button label={t.pro.seePro} variant="plain" size="small" onPress={presentPaywall} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />}
-    />
-  );
-}
-
-/** Free plan check before a render: explains the limit instead of just walling it off. */
-function quotaAllows(files: number) {
-  const left = exportsLeft();
-  if (left === null || files <= left) return true;
+/** Free plan check for a batch size: explains the limit instead of just walling it off. */
+function batchAllows(count: number) {
+  const limit = batchLimit();
+  if (limit === null || count <= limit) return true;
   const t = tr();
-  const date = formatDayMonth(quotaResetsAt());
-  const [title, message] = left === 0 ? [t.pro.quotaOutTitle, t.pro.quotaOutMessage(FREE_MONTHLY_EXPORTS, date)] : [t.pro.quotaTooManyTitle(left), t.pro.quotaTooManyMessage(files, left)];
   haptic.warning();
-  Alert.alert(title, message, [
+  Alert.alert(t.pro.batchLimitTitle(limit), t.pro.batchLimitMessage(limit), [
     { text: t.pro.notNow, style: 'cancel' },
     { text: t.pro.seePro, onPress: presentPaywall },
   ]);

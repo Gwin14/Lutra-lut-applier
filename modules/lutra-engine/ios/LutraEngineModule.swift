@@ -20,13 +20,15 @@ public class LutraEngineModule: Module {
       return String(data: data, encoding: .utf8) ?? "{}"
     }
 
-    Function("render") { (job: String, sources: String, destinations: String, shaders: String) in
+    Function("render") { (job: String, sources: String, destinations: String, shaders: String, labels: String?) in
       let decoder = JSONDecoder()
       let parsedJob = try decoder.decode(RenderJob.self, from: Data(job.utf8))
       let parsedSources = try decoder.decode([String: String].self, from: Data(sources.utf8))
       let parsedDestinations = try decoder.decode([String: String].self, from: Data(destinations.utf8))
       let parsedShaders = try decoder.decode(EngineShaders.self, from: Data(shaders.utf8))
-      self.engine.render(job: parsedJob, sources: parsedSources, destinations: parsedDestinations, shaders: parsedShaders)
+      let parsedLabels = labels.flatMap { try? decoder.decode(BackgroundLabels.self, from: Data($0.utf8)) }
+      self.engine.render(
+        job: parsedJob, sources: parsedSources, destinations: parsedDestinations, shaders: parsedShaders, labels: parsedLabels)
     }
 
     Function("cancel") {

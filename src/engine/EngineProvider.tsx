@@ -13,9 +13,8 @@ import { haptic } from '../lib/haptics';
 import { formatEta } from '../lib/format';
 import { thumbnailAt } from '../lib/media';
 import { useExports } from '../store/exports';
-import { useQuota } from '../store/quota';
 import { useSettings } from '../store/settings';
-import { endRenderActivity, startRenderActivity, updateRenderActivity, updateRenderWidget } from '../widgets';
+import { endRenderActivity, endStaleRenderActivities, startRenderActivity, updateRenderActivity, updateRenderWidget } from '../widgets';
 import { ENGINE_HTML } from './engineHtml.generated';
 import { localizeEngineError } from './errors';
 import type { PreparedJob } from './jobs';
@@ -80,7 +79,14 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           destinations[String(o.index)] = r.prepared.records[i].uri;
         });
         try {
-          native.render(JSON.stringify(cmd.job), JSON.stringify(r?.prepared.sources ?? {}), JSON.stringify(destinations), JSON.stringify(NATIVE_SHADERS));
+          const labels = { title: r?.title ?? 'Lutra', subtitle: tr().widgets.exportingCount(cmd.job.outputs.length) };
+          native.render(
+            JSON.stringify(cmd.job),
+            JSON.stringify(r?.prepared.sources ?? {}),
+            JSON.stringify(destinations),
+            JSON.stringify(NATIVE_SHADERS),
+            JSON.stringify(labels),
+          );
         } catch (e) {
           onEventRef.current({ type: 'outputError', outIndex: -1, message: String((e as Error)?.message ?? e) });
           onEventRef.current({ type: 'jobDone', canceled: false });
@@ -167,7 +173,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         total: recs.length,
         exportedToday: exportedToday(),
       });
-      endRenderActivity({ title: r.title, progress: 1, finished: ok, total: recs.length, eta: canceled ? tr().exports.canceledShort : tr().exports.doneShort });
+      endRenderActivity(
+        { title: r.title, progress: 1, finished: ok, total: recs.length, eta: canceled ? tr().exports.canceledShort : tr().exports.doneShort },
+        canceled,
+      );
       deactivateKeepAwake('lutra-render').catch(() => {});
       running.current = null;
       s.setActive(null);
@@ -269,7 +278,6 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             }
           })();
           s.patchRecord(rec.id, { status: 'done', progress: 1, duration: evt.duration, size, finishedAt: Date.now() });
-          useQuota.getState().countExport();
           // Post-processing that does not block the next output.
           (async () => {
             const thumb = await thumbnailAt(rec.uri, Math.min(1, evt.duration / 3), 0.5);
@@ -310,6 +318,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
+
+  useEffect(() => {
+    // Jobs never survive a restart, so any activity still up belongs to a run that died.
+    endStaleRenderActivities();
+  }, []);
 
   useEffect(() => {
     if (!NATIVE) return;

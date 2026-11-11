@@ -133,6 +133,8 @@ export const en: Dict = {
     viewExports: 'View exports',
     keepOpenTitle: 'Keep Lutra open',
     keepOpenMessage: 'Encoding uses the device’s video hardware and pauses if the app goes to the background. The screen won’t turn off on its own.',
+    backgroundTitle: 'You can leave Lutra',
+    backgroundMessage: 'The export keeps going in the background, a bit slower, and the progress stays on the Lock Screen. Closing Lutra from the app switcher cancels it.',
     keepEditing: 'Keep editing',
     startingEngine: 'Starting the video engine…',
     startingEngineMessage: 'Checking which codecs this device can encode.',
@@ -382,7 +384,7 @@ export const en: Dict = {
   pro: {
     title: 'Lutra Pro',
     subtitle: 'The whole log workflow, for people who actually shoot.',
-    features: ['Unlimited exports, in batches or merged into one video', 'Export in 4K and original resolution', 'Import and export .cube LUTs', 'Scopes, false color and zebra'],
+    features: ['Batches of any size, as separate files or merged into one video', 'Export in 4K and original resolution', 'Import and export .cube LUTs', 'Scopes, false color and zebra'],
     annual: 'Yearly',
     monthly: 'Monthly',
     lifetime: 'Lifetime',
@@ -410,13 +412,9 @@ export const en: Dict = {
     proOption: (label: string) => `${label} · Pro`,
     seePro: 'See Pro',
     notNow: 'Not now',
-    quotaLeft: (left: number, total: number) => `${left} of ${total} free exports left this month`,
-    quotaWarnTitle: (left: number) => (left === 1 ? '1 free export left this month' : `${left} free exports left this month`),
-    quotaWarnMessage: (date: string) => `Your allowance renews on ${date}. Pro exports without limits.`,
-    quotaOutTitle: 'Free exports used up for this month',
-    quotaOutMessage: (total: number, date: string) => `The free plan includes ${total} exports a month and renews on ${date}. Your projects stay saved and you can keep editing as usual.`,
-    quotaTooManyTitle: (left: number) => (left === 1 ? '1 export left this month' : `${left} exports left this month`),
-    quotaTooManyMessage: (files: number, left: number) => `This export makes ${files} videos. Select up to ${left} ${left === 1 ? 'clip' : 'clips'} or choose “Merge into one video”.`,
+    batchCount: (count: number, limit: number) => `${count} of ${limit} videos in this batch on the free plan`,
+    batchLimitTitle: (limit: number) => `Up to ${limit} videos per batch`,
+    batchLimitMessage: (limit: number) => `On the free plan each export takes up to ${limit} videos. Export the rest in another batch, or get Pro to export everything at once.`,
   },
   settings: {
     replayIntro: 'Show introduction',
@@ -510,6 +508,7 @@ export const en: Dict = {
     exportedToday: (c) => (c === 1 ? 'video exported today' : 'videos exported today'),
     lookOfDay: 'LOOK OF THE DAY',
     readyOf: (finished, total, eta) => `${finished} of ${total} ready · ${eta}`,
+    exportingCount: (n) => (n === 1 ? 'Exporting 1 video' : `Exporting ${n} videos`),
   },
 
   lookCategories: {
