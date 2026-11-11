@@ -7,7 +7,7 @@ import type { PurchasesPackage } from 'react-native-purchases';
 
 import { useT } from '../i18n';
 import { haptic } from '../lib/haptics';
-import { PRIVACY_URL, TERMS_URL } from '../lib/links';
+import { privacyUrl, TERMS_URL } from '../lib/links';
 import { isTrialEligible, loadOffering, purchase, restorePurchases, useProStore } from '../store/pro';
 import { radius, space } from '../theme/tokens';
 import { usePalette } from '../theme/useTheme';
@@ -166,7 +166,7 @@ export default function PaywallScreen() {
           <Text variant="footnote" tone="tertiary" center>{legal}</Text>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: space.l }}>
             <Button label={p.terms} variant="plain" size="small" onPress={() => Linking.openURL(TERMS_URL)} />
-            {PRIVACY_URL ? <Button label={p.privacy} variant="plain" size="small" onPress={() => Linking.openURL(PRIVACY_URL)} /> : null}
+            <Button label={p.privacy} variant="plain" size="small" onPress={() => Linking.openURL(privacyUrl())} />
           </View>
         </View>
       </ScrollView>
