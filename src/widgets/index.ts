@@ -98,8 +98,14 @@ export function refreshLookWidget() {
   } catch {}
 }
 
-type Activity = { update(p: RenderActivityProps): Promise<void>; end(policy?: 'default' | 'immediate', p?: RenderActivityProps): Promise<void> };
+type Activity = {
+  update(p: RenderActivityProps): Promise<void>;
+  end(policy?: 'default' | 'immediate' | { after: Date }, p?: RenderActivityProps): Promise<void>;
+};
 let activity: Activity | null = null;
+
+/** How long the final state stays on the Lock Screen / Dynamic Island after a finished export. */
+const DONE_LINGER_MS = 8000;
 
 /** Live Activity state; the localized subtitle is added here. */
 export type RenderActivityState = Omit<RenderActivityProps, 'subtitle'>;
@@ -109,6 +115,8 @@ const withSubtitle = (p: RenderActivityState): RenderActivityProps => ({ ...p, s
 export function startRenderActivity(props: RenderActivityState) {
   const d = load();
   if (!d) return;
+  // One export at a time: never leave a previous activity behind.
+  if (activity) endRenderActivity(undefined, true);
   try {
     activity = d.renderActivity.start(withSubtitle(props), 'lutra:///exports') as unknown as Activity;
   } catch {
@@ -120,8 +128,23 @@ export function updateRenderActivity(props: RenderActivityState) {
   activity?.update(withSubtitle(props)).catch(() => {});
 }
 
-export function endRenderActivity(props?: RenderActivityState) {
-  activity?.end('default', props ? withSubtitle(props) : undefined).catch(() => {});
+/**
+ * Ends the current activity. A finished export shows its final state for a few
+ * seconds and then leaves on its own; a canceled one leaves right away.
+ */
+export function endRenderActivity(props?: RenderActivityState, immediate = false) {
+  const policy = immediate ? 'immediate' : { after: new Date(Date.now() + DONE_LINGER_MS) };
+  activity?.end(policy, props ? withSubtitle(props) : undefined).catch(() => {});
+  activity = null;
+}
+
+/** Ends activities left over by a previous run of the app (killed mid-export, crash, reload). */
+export function endStaleRenderActivities() {
+  const d = load();
+  if (!d) return;
+  try {
+    for (const a of d.renderActivity.getInstances()) a.end('immediate').catch(() => {});
+  } catch {}
   activity = null;
 }
 

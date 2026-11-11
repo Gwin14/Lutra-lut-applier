@@ -23,7 +23,7 @@ import { useT } from '../../i18n';
 import { haptic } from '../../lib/haptics';
 import { checkClip, useClipStatus, useFileWatcher } from '../../store/fileStatus';
 import { useLibrary } from '../../store/library';
-import { requirePro } from '../../store/pro';
+import { requirePro, useProLocked, useProStore } from '../../store/pro';
 import { effectiveGrade, useHistoryState, useProjects, type Clip } from '../../store/projects';
 import { previewLutSize, useSettings } from '../../store/settings';
 import { useGradeLut } from '../../preview/lutImage';
@@ -131,6 +131,7 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
   const [compare, setCompare] = useState(false);
   const [falseColor, setFalseColor] = useState(false);
   const [zebra, setZebra] = useState(false);
+  const locked = useProLocked();
   const [scopes, setScopes] = useState<ScopeMode | null>(null);
   const [scopesTick, setScopesTick] = useState(0);
   const [info, setInfo] = useState<VideoInfo | null>(null);
@@ -201,6 +202,12 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
     ]);
   };
 
+  // Action sheets are plain text, so the Pro tag goes in the label.
+  const cubeLabel = (size: 33 | 65) => {
+    const { ready, isPro } = useProStore.getState();
+    return ready && !isPro ? t.pro.proOption(t.editor.exportCube(size)) : t.editor.exportCube(size);
+  };
+
   const moreActions = () =>
     showActions(t.editor.batch, [
       {
@@ -216,8 +223,8 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           }
         },
       },
-      { label: t.editor.exportCube(33), onPress: () => requirePro() && exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
-      { label: t.editor.exportCube(65), onPress: () => requirePro() && exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
+      { label: cubeLabel(33), onPress: () => requirePro() && exportGradeCube(clip.input, grade, 33, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
+      { label: cubeLabel(65), onPress: () => requirePro() && exportGradeCube(clip.input, grade, 65, project.name).catch((e) => Alert.alert(t.common.error, String(e?.message ?? e))) },
       {
         label: t.editor.saveRecipe,
         onPress: () => {
@@ -270,14 +277,15 @@ function Editor({ projectId, clip, onSelectClip }: { projectId: string; clip: Cl
           label={scopes ? t.editor.scopesOn({ histogram: t.editor.histogram, waveform: t.editor.waveform, parade: t.editor.parade }[scopes]) : t.editor.showScopes}
           tone="clear"
           active={!!scopes}
+          pro={locked}
           onPress={() => {
             if (!requirePro()) return;
             setScopes((s) => SCOPE_CYCLE[(SCOPE_CYCLE.indexOf(s) + 1) % SCOPE_CYCLE.length]);
             haptic.selection();
           }}
         />
-        <IconButton icon="falseColor" label={t.editor.falseColor} tone="clear" active={falseColor} onPress={() => requirePro() && setFalseColor((v) => !v)} />
-        <IconButton icon="zebra" label={t.editor.zebra} tone="clear" active={zebra} onPress={() => requirePro() && setZebra((v) => !v)} />
+        <IconButton icon="falseColor" label={t.editor.falseColor} tone="clear" active={falseColor} pro={locked} onPress={() => requirePro() && setFalseColor((v) => !v)} />
+        <IconButton icon="zebra" label={t.editor.zebra} tone="clear" active={zebra} pro={locked} onPress={() => requirePro() && setZebra((v) => !v)} />
       </View>
     </View>
   );

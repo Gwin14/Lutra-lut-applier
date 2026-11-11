@@ -5,6 +5,7 @@ import { radius, space } from '../theme/tokens';
 import { usePalette } from '../theme/useTheme';
 import { Icon, type IconName } from './Icon';
 import { PressableScale } from './Pressable';
+import { tr } from '../i18n';
 import { Text } from './Text';
 
 /** Composed empty state: says what is missing and how to fill it. */
@@ -66,13 +67,30 @@ export function ProgressBar({ value, height = 4, track }: { value: number; heigh
   );
 }
 
-/** Pill chip used for filters and choices. */
-export function Chip({ label, selected, onPress, icon }: { label: string; selected?: boolean; onPress?: () => void; icon?: IconName }) {
+/** Small "PRO" tag marking an option that needs Lutra Pro. */
+export function ProBadge({ onAccent }: { onAccent?: boolean }) {
+  const c = usePalette();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: radius.pill, backgroundColor: onAccent ? 'rgba(255,255,255,0.22)' : c.accentSoft }}
+    >
+      <Text variant="caption2" weight="700" color={onAccent ? c.onAccent : c.accentText}>
+        {tr().pro.badge}
+      </Text>
+    </View>
+  );
+}
+
+/** Pill chip used for filters and choices. `pro` adds a subtle Pro tag. */
+export function Chip({ label, selected, onPress, icon, pro }: { label: string; selected?: boolean; onPress?: () => void; icon?: IconName; pro?: boolean }) {
   const c = usePalette();
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={pro ? tr().pro.proOption(label) : undefined}
       accessibilityState={{ selected: !!selected }}
       style={{
         height: 34,
@@ -88,6 +106,7 @@ export function Chip({ label, selected, onPress, icon }: { label: string; select
       <Text variant="subhead" weight="600" color={selected ? c.onAccent : c.label}>
         {label}
       </Text>
+      {pro ? <ProBadge onAccent={selected} /> : null}
     </PressableScale>
   );
 }

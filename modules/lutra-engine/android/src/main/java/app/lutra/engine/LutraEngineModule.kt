@@ -26,7 +26,8 @@ class LutraEngineModule : Module() {
       NativeEngine.caps().toString()
     }
 
-    Function("render") { job: String, sources: String, destinations: String, shaders: String ->
+    // `labels` feeds the iOS background-export UI; unused here.
+    Function("render") { job: String, sources: String, destinations: String, shaders: String, _: String? ->
       val s = JSONObject(shaders)
       engine().render(
         RenderJob.parse(job),

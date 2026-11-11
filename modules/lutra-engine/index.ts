@@ -11,9 +11,10 @@ declare class LutraEngineNative extends NativeModule<LutraEngineEvents> {
   /**
    * Starts a job; progress and results arrive as `onEvent`. All arguments are JSON:
    * job: RenderJob, sources: clipKey -> file uri, destinations: outIndex -> file uri,
-   * shaders: { glslVertex, glslFragment, msl }.
+   * shaders: { glslVertex, glslFragment, msl }; labels (iOS): { title, subtitle } for the
+   * system UI of the background export.
    */
-  render(job: string, sources: string, destinations: string, shaders: string): void;
+  render(job: string, sources: string, destinations: string, shaders: string, labels?: string): void;
   cancel(): void;
 
   /**

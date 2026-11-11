@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  s.frameworks = 'AVFoundation', 'CoreMedia', 'CoreVideo', 'Metal', 'CoreImage', 'VideoToolbox'
+  s.frameworks = 'AVFoundation', 'CoreMedia', 'CoreVideo', 'Metal', 'CoreImage', 'VideoToolbox', 'BackgroundTasks', 'ActivityKit'
 
   s.source_files = "**/*.{h,m,swift}"
   s.pod_target_xcconfig = {

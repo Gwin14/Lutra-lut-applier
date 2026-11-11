@@ -74,3 +74,8 @@ export function sanitizeFilename(name: string) {
       .slice(0, 60) || 'lutra'
   );
 }
+
+/** Day and month, e.g. "1 de dezembro" / "December 1". */
+export function formatDayMonth(date: Date) {
+  return date.toLocaleDateString(intlTag(), { day: 'numeric', month: 'long' });
+}

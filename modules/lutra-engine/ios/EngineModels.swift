@@ -64,6 +64,12 @@ struct EngineShaders: Decodable {
   let msl: String
 }
 
+/** Localized title/subtitle for the system's background-export UI (iOS 26 continued processing). */
+struct BackgroundLabels: Decodable {
+  let title: String
+  let subtitle: String
+}
+
 /** Engine failure with a coded message ('@code|arg') localized by src/engine/errors.ts. */
 struct EngineError: Error, CustomStringConvertible {
   let message: String

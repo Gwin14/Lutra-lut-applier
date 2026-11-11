@@ -5,6 +5,14 @@ import CoreVideo
 import Foundation
 import UIKit
 
+/// Thread-safe counter.
+final class Counter {
+  private let lock = NSLock()
+  private var count = 0
+  func increment() { lock.lock(); count += 1; lock.unlock() }
+  var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+}
+
 /// Thread-safe flag.
 final class Flag {
   private let lock = NSLock()
@@ -51,8 +59,13 @@ final class NativeEngine {
   private let thread = DispatchQueue(label: "app.lutra.engine.render", qos: .userInitiated)
   private let canceled = Flag()
   private let backgrounded = Flag()
+  /// Bumped on every return to the foreground, so waits that spanned a suspension are not taken for stalls.
+  private let resumes = Counter()
   private var grader: MetalGrader?
   private var graderSource: String?
+  /// Grades while backgrounded without GPU access (iPhone): same output as the Metal kernel.
+  private let cpuGrader = CPUGrader()
+  private let background = BackgroundRun()
   private let ciContext = CIContext(options: [.cacheIntermediates: false])
   private var observers: [NSObjectProtocol] = []
   /// False only for the command-line test harness, which has no UIApplication.
@@ -68,8 +81,17 @@ final class NativeEngine {
     })
     observers.append(nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { [weak self] _ in
       self?.backgrounded.set(false)
+      self?.resumes.increment()
+    })
+    observers.append(nc.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: nil) { [weak self] _ in
+      // Swiped away mid-export: nothing will ever update the Live Activity again.
+      self?.canceled.set(true)
+      LiveActivities.endAllNow()
     })
   }
+
+  /// Whether this frame may go to the GPU.
+  private var gpuAllowed: Bool { !backgrounded.isSet || background.gpuGranted }
 
   deinit {
     observers.forEach { NotificationCenter.default.removeObserver($0) }
@@ -100,22 +122,19 @@ final class NativeEngine {
 
   func cancel() { canceled.set(true) }
 
-  func render(job: RenderJob, sources: [String: String], destinations: [String: String], shaders: EngineShaders) {
+  func render(
+    job: RenderJob, sources: [String: String], destinations: [String: String], shaders: EngineShaders,
+    labels: BackgroundLabels? = nil
+  ) {
     canceled.set(false)
     if appLifecycle { backgrounded.set(UIApplication.shared.applicationState == .background) }
     thread.async { [self] in
-      var bgTask = UIBackgroundTaskIdentifier.invalid
       if appLifecycle { DispatchQueue.main.sync {
-        bgTask = UIApplication.shared.beginBackgroundTask(withName: "lutra-render") {
-          UIApplication.shared.endBackgroundTask(bgTask)
-          bgTask = .invalid
+        background.begin(title: labels?.title ?? "Lutra", subtitle: labels?.subtitle ?? "") { [weak self] in
+          self?.cancel()
         }
       } }
-      defer {
-        if bgTask != .invalid {
-          DispatchQueue.main.async { UIApplication.shared.endBackgroundTask(bgTask) }
-        }
-      }
+      defer { if appLifecycle { background.end(success: !canceled.isSet) } }
       do {
         if grader == nil || graderSource != shaders.msl {
           grader = try MetalGrader(source: shaders.msl)
@@ -126,11 +145,13 @@ final class NativeEngine {
         emit(["type": "jobDone", "canceled": false])
         return
       }
-      for out in job.outputs {
+      for (pos, out) in job.outputs.enumerated() {
         if canceled.isSet { break }
         do {
           try autoreleasepool {
-            try renderOutput(job: job, out: out, sources: sources, destination: destinations[String(out.index)])
+            try renderOutput(job: job, out: out, sources: sources, destination: destinations[String(out.index)]) { fraction in
+              if appLifecycle { background.update(fraction: (Double(pos) + fraction) / Double(job.outputs.count)) }
+            }
           }
         } catch {
           if !canceled.isSet {
@@ -199,13 +220,11 @@ final class NativeEngine {
     throw EngineError("@noEncoder|\(out.container.uppercased())|")
   }
 
-  private func waitWhileBackgrounded() {
-    while backgrounded.isSet && !canceled.isSet { usleep(100_000) }
-  }
-
   // MARK: output
 
-  private func renderOutput(job: RenderJob, out: RenderOutput, sources: [String: String], destination: String?) throws {
+  private func renderOutput(
+    job: RenderJob, out: RenderOutput, sources: [String: String], destination: String?, onFraction: (Double) -> Void
+  ) throws {
     guard let grader else { throw EngineError("Metal unavailable") }
     guard let destination else { throw EngineError("no destination") }
     guard out.container != "webm" else { throw EngineError("@noEncoder|WEBM|") }
@@ -329,7 +348,6 @@ final class NativeEngine {
       var pending = videoOut.copyNextSampleBuffer()
       for k in 0..<segFrames {
         if canceled.isSet { break }
-        waitWhileBackgrounded()
         let target = seg.start + (Double(k) + 0.5) / fps
         // Latest decoded frame at or before the target time (repeats/drops for fps changes).
         while let s = pending, CMSampleBufferGetPresentationTimeStamp(s).seconds <= target {
@@ -365,11 +383,23 @@ final class NativeEngine {
           [Float(width), Float(height), rawW, rawH, Float(clip.rot)] + crop + grader.lutInfo + fx
           + [-1, 0, 0, 0, Float(offset + local), Float(mul)]
           + [k10 / 876, -64.0 / 876, k10 / 896, -512.0 / 896] + clip.matrix
-        try grader.render(source: src, into: dst, uniforms: uniforms)
+        if gpuAllowed {
+          do {
+            try grader.render(source: src, into: dst, uniforms: uniforms)
+          } catch where backgrounded.isSet {
+            // Went to the background between the check and the commit: the GPU refused the work.
+            try cpuGrader.setLut(key: seg.lutKey, payload: lut)
+            try cpuGrader.render(source: src, into: dst, uniforms: uniforms)
+          }
+        } else {
+          try cpuGrader.setLut(key: seg.lutKey, payload: lut)
+          try cpuGrader.render(source: src, into: dst, uniforms: uniforms)
+        }
 
         let ts = offset + Double(k) / fps
         audio?.pump(until: ts + 0.5)
-        let waitStart = CACurrentMediaTime()
+        var waitStart = CACurrentMediaTime()
+        var waitEpoch = resumes.value
         while !videoInput.isReadyForMoreMediaData {
           if canceled.isSet { break }
           if writer.status == .failed { throw writer.error ?? EngineError("AVAssetWriter failed") }
@@ -377,6 +407,11 @@ final class NativeEngine {
             audio.pump(until: ts + 1.5)
             // Nothing left to interleave: let the writer flush video alone.
             if isLast && audio.cursor >= AudioLane.frames(segEndOut) { audio.finish() }
+          }
+          if resumes.value != waitEpoch {
+            // The app was suspended during this wait (no continued-processing task).
+            waitEpoch = resumes.value
+            waitStart = CACurrentMediaTime()
           }
           if CACurrentMediaTime() - waitStart > 15 { throw EngineError("AVAssetWriter stalled") }
           usleep(1000)
@@ -391,8 +426,10 @@ final class NativeEngine {
         if now - lastProgress > 0.25 {
           lastProgress = now
           emit(["type": "progress", "outIndex": out.index, "frame": done, "frames": frames, "fps": Double(done) / max(now - t0, 0.001)])
+          onFraction(Double(done) / Double(max(frames, 1)))
         }
-        if now - lastPreview > 0.9 {
+        // Nobody sees the preview in the background, and Core Image would want the GPU.
+        if now - lastPreview > 0.9 && !backgrounded.isSet {
           lastPreview = now
           sendPreview(dst, width: width, height: height)
         }
