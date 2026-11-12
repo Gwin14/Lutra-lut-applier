@@ -3,7 +3,7 @@
     "name": "Lutra",
     "slug": "lutra",
     "scheme": "lutra",
-    "version": "1.0.0",
+    "version": "1.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -21,6 +21,10 @@
         ],
         "BGTaskSchedulerPermittedIdentifiers": [
           "app.lutra.video.export.*"
+        ],
+        "CFBundleLocalizations": [
+          "en",
+          "pt"
         ]
       }
     },
@@ -32,7 +36,15 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -134,6 +146,43 @@
     "locales": {
       "en": "./locales/en.json",
       "pt": "./locales/pt.json"
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "expo-sharing-extension",
+                  "bundleIdentifier": "app.lutra.video.expo-sharing-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.app.lutra.video"
+                    ]
+                  }
+                },
+                {
+                  "targetName": "ExpoWidgetsTarget",
+                  "bundleIdentifier": "app.lutra.video.ExpoWidgetsTarget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.app.lutra.video"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "d9ae2c4e-8867-48d9-abf5-5a827ad2c5a6"
+      }
+    },
+    "owner": "gwin14"
   }
 }
